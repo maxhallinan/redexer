@@ -25,8 +25,8 @@ data Expr
 
 instance showExpr :: Show Expr where
   show (Var s) = s
-  show (Lambda p b) = "\ " <> p <> ". " <> show b
-  show (Apply e1 e2) = "(" <> show e1 <> " " <> show e2 <> ")"
+  show (Lambda p b) = "\\" <> p <> "." <> show b.expr
+  show (Apply e1 e2) = "(" <> show e1.expr <> " " <> show e2.expr <> ")"
 
 instance eqExpr :: Eq Expr where
   eq (Var s1) (Var s2) = s1 == s2
@@ -38,7 +38,7 @@ data ReplaceErr = NodeNotFound String
 derive instance eqReplaceErr :: Eq ReplaceErr
 
 instance showReplaceErr :: Show ReplaceErr where
-  show (NodeNotFound nodeId) = "NodeNotFound " <> nodeId
+  show (NodeNotFound nodeId) = "(NodeNotFound " <> nodeId <> ")"
 
 replaceNode :: String -> Node -> Node -> Either ReplaceErr Node
 replaceNode id new old =
@@ -88,7 +88,7 @@ data ApplyErr = NotALambda
 derive instance eqApplyErr :: Eq ApplyErr
 
 instance showApplyErr :: Show ApplyErr where
-  show NotALambda = "Not a lambda."
+  show NotALambda = "NotALambda."
 
 applyLambda :: Node -> Node -> Either ApplyErr Node
 applyLambda fn arg =
@@ -106,6 +106,10 @@ applyLambda fn arg =
           then arg
           else body
         Lambda p b ->
-          { id: body.id, expr: Lambda p (subParam paramName b) }
+          { id: body.id
+          , expr: Lambda p (subParam paramName b)
+          }
         Apply n1 n2 ->
-          { id: body.id, expr: Apply (subParam paramName n1) (subParam paramName n2) }
+          { id: body.id
+          , expr: Apply (subParam paramName n1) (subParam paramName n2)
+          }
