@@ -7,10 +7,13 @@ You can edit this file as you like.
 , dependencies =
     [ "console"
     , "control"
+    , "debug"
     , "effect"
     , "parsing"
     , "psci-support"
+    , "quickcheck"
     , "spec"
+    , "spec-quickcheck"
     , "uuid"
     ]
 , packages =

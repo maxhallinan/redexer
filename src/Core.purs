@@ -1,10 +1,12 @@
 module Core
   ( ApplyErr(..)
   , Expr(..)
+  , ExprType(..)
   , Node
   , ReplaceErr(..)
   , applyLambda
   , eqNode
+  , isExprType
   , replaceNode
   ) where
 
@@ -22,6 +24,14 @@ data Expr
   = Var String
   | Lambda String Node
   | Apply Node Node
+
+data ExprType = V | L | A
+
+isExprType :: ExprType -> Expr -> Boolean
+isExprType V (Var _ ) = true
+isExprType L (Lambda _ _) = true
+isExprType A (Apply _ _) = true
+isExprType _ _ = false
 
 instance showExpr :: Show Expr where
   show (Var s) = s

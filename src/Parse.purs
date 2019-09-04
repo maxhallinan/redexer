@@ -1,4 +1,4 @@
-module Parse (parse) where
+module Parse (ParseErr, parse) where
 
 import Prelude
 
@@ -13,6 +13,8 @@ import Text.Parsing.Parser.String as S
 import Text.Parsing.Parser.Token as T
 
 type Parser a = P.Parser String a
+
+type ParseErr = P.ParseError
 
 parse :: String -> Either P.ParseError Node
 parse s = P.runParser s (C.between lexer.whiteSpace S.eof expr)
