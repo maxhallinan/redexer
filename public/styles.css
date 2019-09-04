@@ -1,0 +1,166 @@
+@font-face {
+  font-family: "TiemposText";
+  src: url("https://static.maxhallinan.com/fonts/klim/TiemposTextWeb-Regular.woff2") format("woff2"),
+       url("https://static.maxhallinan.com/fonts/klim/TiemposTextWeb-Regular.woff") format("woff");
+  font-weight: 400;
+}
+
+@font-face {
+  font-family: "TiemposText";
+  font-display: swap;
+  src: url("https://static.maxhallinan.com/fonts/klim/TiemposTextWeb-RegularItalic.woff2") format("woff2"),
+       url("https://static.maxhallinan.com/fonts/klim/TiemposTextWeb-RegularItalic.woff") format("woff");
+  font-weight: 400;
+  font-style: italic;
+}
+
+@font-face {
+  font-family: "TiemposHeadline";
+  src: url("https://static.maxhallinan.com/fonts/klim/TiemposHeadlineWeb-Semibold.woff2") format("woff2"),
+       url("https://static.maxhallinan.com/fonts/klim/TiemposHeadlineWeb-Semibold.woff") format("woff");
+  font-weight: 800;
+}
+
+@font-face {
+  font-family: "TriplicateT3Code";
+  src: url("https://static.maxhallinan.com/fonts/mb/TriplicateT3Code-Regular.woff2") format("woff2"),
+       url("https://static.maxhallinan.com/fonts/mb/TriplicateT3Code-Regular.woff") format("woff");
+  font-weight: 400;
+}
+
+* {
+  box-sizing: border-box;
+  text-rendering: optimizelegibility;
+}
+
+html {
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+body {
+  background-color: #fdfdfd;
+  color: #333;
+  font-family: "TiemposText", serif;
+  font-weight: 400;
+  margin: 0;
+  padding: 0;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  color: #222;
+  font-family: "TiemposHeadline", serif;
+  font-weight: 800;
+}
+
+.prose {
+  font-family: "TiemposText", serif;
+  hyphens: auto;
+}
+
+.prose h1,
+.prose h2,
+.prose h3,
+.prose h4,
+.prose h5,
+.prose h6 {
+  font-family: "TiemposHeadline", serif;
+  font-weight: 800;
+  margin: 0;
+}
+
+.prose h1 {
+  font-size: 1.83rem;
+  line-height: 1.2;
+  margin: 1.83rem 0;
+}
+
+.prose h1:first-of-type {
+  margin-top: 0;
+}
+
+.prose h2 {
+  font-size: 1.63rem;
+  line-height: 1.2;
+  margin: 1.83rem 0 0.51rem;
+}
+
+.prose h3 {
+  font-size: 1.44rem;
+  line-height: 1.2;
+  margin: 1.53rem 0 0.51rem;
+}
+
+.prose h4,
+.prose h5,
+.prose h6 {
+  font-size: 1.27rem;
+  line-height: 1.2;
+  margin: 1.53rem 0 0.51rem;
+}
+
+.prose p {
+  font-size: 1.27rem;
+  line-height: 1.53;
+  margin: 0 0 1rem;
+}
+
+.prose code {
+  font-family: "Pitch", "FiraMonoRegular", monospace;
+  font-weight: 400;
+}
+
+.prose {
+  margin: 0 auto;
+  max-width: calc(40.63rem + 2rem); /* <cell-width> + <padding-width * 2> */
+  padding: 0 1rem;
+}
+
+.code {
+  max-width: 40.63rem;
+  margin: 0 auto 1rem;
+}
+
+.CodeCell,
+.CodeCell-editor .CodeMirror {
+  font-family: "TriplicateT3Code", monospace;
+  font-weight: 400;
+  font-size: 1.05rem;
+}
+
+.CodeCell {
+  border: 1px solid #333;
+  color: #333;
+}
+
+.CodeCell-editor {
+  padding: 1rem;
+}
+
+.CodeCell-result {
+  border-top: 1px solid #999;
+  color: #333;
+}
+
+.CodeCell-evaled {
+  margin: 0;
+  padding: 0.316rem 1rem;
+}
+
+.CodeCell-editor .CodeMirror {
+  height: auto;
+}
+
+.CodeCell .CodeMirror-lines {
+  padding: 0; /* Remove padding so CodeMirror instance and ProseMirror instance have the same height.*/
+}
+
+.CodeCell .CodeMirror pre.CodeMirror-line,
+.CodeCell .CodeMirror pre.CodeMirror-line-like {
+  padding: 0; /* Override the 4px of padding the beginning and end of the line. Otherwise there is a strange space between the cursor and the code.*/
+}

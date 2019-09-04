@@ -9,12 +9,15 @@ You can edit this file as you like.
     , "control"
     , "debug"
     , "effect"
+    , "halogen"
     , "parsing"
     , "psci-support"
     , "quickcheck"
     , "spec"
     , "spec-quickcheck"
     , "uuid"
+    , "web-dom"
+    , "web-html"
     ]
 , packages =
     ./packages.dhall
