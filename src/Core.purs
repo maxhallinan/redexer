@@ -7,13 +7,16 @@ module Core
   , applyLambda
   , eqNode
   , isExprType
+  , replaceIds
   , replaceNode
   ) where
 
 import Prelude
 
-import Data.Maybe (Maybe(..), maybe)
 import Data.Either (Either(..))
+import Data.Maybe (Maybe(..), maybe)
+import Data.UUID as U
+import Effect (Effect)
 
 type Node = { id :: String, expr :: Expr }
 
@@ -123,3 +126,17 @@ applyLambda fn arg =
           { id: body.id
           , expr: Apply (subParam paramName n1) (subParam paramName n2)
           }
+
+replaceIds :: Node -> Effect Node
+replaceIds tree = do
+  id <- U.toString <$> U.genUUID
+  case tree.expr of
+    Var _ ->
+      pure $ { id: id, expr: tree.expr }
+    Lambda param body -> do
+      body' <- replaceIds body
+      pure $ { id: id, expr: Lambda param body' }
+    Apply e1 e2 -> do
+       e1' <- replaceIds e1
+       e2' <- replaceIds e2
+       pure $ { id: id, expr: Apply e1' e2' }
