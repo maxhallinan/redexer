@@ -2,6 +2,7 @@ module Main where
 
 import Prelude
 
+import Component.Stepper as Stepper
 import Data.Array ((:))
 import Data.Maybe (Maybe(..))
 import Data.Foldable (foldl)
@@ -9,7 +10,6 @@ import Data.Traversable (traverse)
 import Effect (Effect)
 import Halogen.Aff as HA
 import Halogen.VDom.Driver (runUI)
-import Stepper as Stepper
 import Web.DOM.Node (Node, childNodes, removeChild)
 import Web.DOM.NodeList (toArray)
 import Web.DOM.ParentNode (QuerySelector(..), querySelectorAll)
