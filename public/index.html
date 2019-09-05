@@ -7,30 +7,7 @@
     <link href="./styles.css" rel="stylesheet">
   </head>
   <body>
-    <article class="article">
-      <div class="prose">
-        <h1>The Number Disguise</h1>
-        <p>By Max Hallinan</p>
-        <p>Free gives us a Monad instance for any Functor. If map is defined for f a, then bind is defined for Free f a. And just like any Monad, we have an Applicative instance too. We get these instances for free, without implementing the operations by hand. But how?</p>
-      </div>
-      <figure id="stepper-1" class="code explorable">
-        <code><pre>
-  (def cons_ (fn (x y)
-    (fn (n)
-      (if (equal? n 0) x y))))
-        </pre></code>
-      </figure>
-      <figure id="stepper-2" class="code explorable">
-        <code><pre>
-  (def foo (cons_ 'x 'y))
-        </pre></code>
-      </figure>
-      <figure id="stepper-3" class="code explorable">
-        <code><pre>
-  (def car_ (fn (xs) (xs 0)))
-        </pre></code>
-      </figure>
-    </article>
-    <script type="text/javascript" src="./bundle.js"></script>
+    <div class="explorable"></div>
+    <script type="text/javascript" src="./bundle.browser.js"></script>
   </body>
 </html>
