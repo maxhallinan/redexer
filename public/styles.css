@@ -75,9 +75,29 @@ h6 {
 }
 
 .prose h1 {
-  font-size: 1.83rem;
+  font-size: 2.28rem;
   line-height: 1.2;
   margin: 1.83rem 0;
+}
+
+.prose .byline {
+  font-size: 0.83rem;
+  font-family: "TiemposText", serif;
+  font-weight: 400;
+  line-height: 1;
+  margin: 0;
+}
+
+.prose .byline a:visited {
+  color: #333;
+}
+
+.prose header h1 {
+  margin: 0 0 0.52rem;
+}
+
+.prose header {
+  margin: 0 0 1.5rem;
 }
 
 .prose h1:first-of-type {
@@ -116,9 +136,9 @@ h6 {
 }
 
 .prose {
-  margin: 0 auto;
-  max-width: calc(40.63rem + 2rem); /* <cell-width> + <padding-width * 2> */
-  padding: 0 1rem;
+  /* margin: 0 auto; */
+  max-width: 43.34rem; /* <cell-width> + <padding-width * 2> */
+  /* padding: 0 1rem; */
 }
 
 .code {
@@ -165,15 +185,33 @@ h6 {
   padding: 0; /* Override the 4px of padding the beginning and end of the line. Otherwise there is a strange space between the cursor and the code.*/
 }
 
-.stepper {
-  padding: 1.9rem 1.5rem;
+.edit {
+  font-family: "TiemposText";
+  font-size: 0.83rem;
+  line-height: 1;
+  padding-left: 0.7rem;
+  text-decoration: underline;
 }
 
-.stepper .apply {
-  cursor: pointer;
+.article {
+  /* padding: 1.9rem 1.5rem; */
+  padding: 1.6rem 1.5rem;
 }
 
 .line {
   font-family: "TriplicateT3Code";
   font-size: 1.125rem;
+  font-size: 1rem;
+}
+
+.apply.applicable {
+  cursor: pointer;
+}
+
+.apply.applicable:hover {
+  background: rgba(255, 255, 0, 0.3);
+}
+
+.apply.applicable:hover .apply.applicable:hover {
+  background: rgba(255, 255, 0, 0.8);
 }

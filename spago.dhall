@@ -17,7 +17,9 @@ You can edit this file as you like.
     , "spec-quickcheck"
     , "uuid"
     , "web-dom"
+    , "web-events"
     , "web-html"
+    , "web-uievents"
     ]
 , packages =
     ./packages.dhall

@@ -6,6 +6,7 @@ module Core
   , ReplaceErr(..)
   , applyLambda
   , eqNode
+  , findNode
   , isExprType
   , replaceIds
   , replaceNode
@@ -101,7 +102,7 @@ data ApplyErr = NotALambda
 derive instance eqApplyErr :: Eq ApplyErr
 
 instance showApplyErr :: Show ApplyErr where
-  show NotALambda = "NotALambda."
+  show NotALambda = "NotALambda"
 
 applyLambda :: Node -> Node -> Either ApplyErr Node
 applyLambda fn arg =
