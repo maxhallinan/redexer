@@ -164,3 +164,16 @@ h6 {
 .CodeCell .CodeMirror pre.CodeMirror-line-like {
   padding: 0; /* Override the 4px of padding the beginning and end of the line. Otherwise there is a strange space between the cursor and the code.*/
 }
+
+.stepper {
+  padding: 1.9rem 1.5rem;
+}
+
+.stepper .apply {
+  cursor: pointer;
+}
+
+.line {
+  font-family: "TriplicateT3Code";
+  font-size: 1.125rem;
+}

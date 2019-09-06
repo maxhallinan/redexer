@@ -13,6 +13,7 @@ import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
 import Halogen as H
 import Halogen.HTML as HH
+import Halogen.HTML.Properties as HP
 
 type State = { lines :: Array Core.Node }
 
@@ -42,13 +43,13 @@ initialState = { lines: mempty }
 render :: State -> H.ComponentHTML Action ChildSlots Aff
 render state =
   HH.div 
-    [] 
+    [ HP.class_ $ HH.ClassName "stepper" ] 
     (mapWithIndex renderLine state.lines)
 
 renderLine :: Int -> Core.Node -> H.ComponentHTML Action ChildSlots Aff
 renderLine index ast = 
   HH.div 
-    [] 
+    [ HP.class_ $ HH.ClassName "line" ] 
     [ HH.slot _nodeSlot index Node.component { ast } (const Nothing) ]
 
 handleAction :: forall o. Action -> H.HalogenM State Action ChildSlots o Aff Unit
@@ -61,10 +62,9 @@ initialize = Just Initialize
 
 handleInitialize :: forall o. H.HalogenM State Action ChildSlots o Aff Unit
 handleInitialize = do
-    let parsed = Parse.parse "((\\x.\\y.x a) b)"
+    let parsed = Parse.parse "((\\x.\\y.x z) a)"
     case parsed of
-      Left err ->
-        -- TODO handle parse error
+      Left err -> do
         pure unit
       Right ast -> do
         ast' <- liftEffect $ Core.replaceIds ast
