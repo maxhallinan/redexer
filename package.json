@@ -1,6 +1,7 @@
 {
   "scripts": {
     "serve": "yarn bundle && http-server dist",
+    "start": "npx parcel ./public/index.html",
     "test": "spago test",
     "watch": "spago bundle-app --watch --to=./public/bundle.js"
   },
