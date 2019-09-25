@@ -3,20 +3,27 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <script src=""></script>
     <link href="./styles.css" rel="stylesheet">
+    <title>Lambda stepper</title>
+    <link rel="preload" as="font" type="font/woff2" href="https://static.maxhallinan.com/fonts/klim/TiemposTextWeb-Regular.woff2" crossorigin/>
+    <link rel="preload" as="font" type="font/woff2" href="https://static.maxhallinan.com/fonts/klim/TiemposHeadlineWeb-Semibold.woff2" crossorigin/>
+    <link rel="preload" as="font" type="font/woff2" href="https://static.maxhallinan.com/fonts/mb/TriplicateT3Code-Regular.woff2" crossorigin/>
   </head>
   <body>
     <article class="article">
       <div class="prose">
         <header>
-          <h1>Functions in disguise</h1>
+          <h1>Lambda stepper</h1>
           <p class="byline">By <a href="https://www.maxhallinan.com">Max Hallinan</a></p>
         </header>
-        <p>Logo is perhaps most famous as the language used to program a robotic turtle. The turtle is physical or virtual, moving around a floor or a screen. As the turtle moves, it leaves a line along its path. A Logo program describes patterns of movement, usually instructing the turtle to draw a picture.</p>
-        <h2>Church encoding</h2>
       </div>
-      <div class="explorable"></div>
+      <div class="stepper">
+        <code>
+          <pre>
+((λx.λy.λs.λz.((x s) ((y s) z)) λs.λz.(s z)) λs.λz.(s (s z)))
+          </pre>
+        </code>
+      </div>
     </article>
     <script type="text/javascript" src="./bundle.browser.js"></script>
   </body>

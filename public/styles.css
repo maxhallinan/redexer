@@ -7,7 +7,6 @@
 
 @font-face {
   font-family: "TiemposText";
-  font-display: swap;
   src: url("https://static.maxhallinan.com/fonts/klim/TiemposTextWeb-RegularItalic.woff2") format("woff2"),
        url("https://static.maxhallinan.com/fonts/klim/TiemposTextWeb-RegularItalic.woff") format("woff");
   font-weight: 400;
@@ -88,6 +87,7 @@ h6 {
   margin: 0;
 }
 
+.prose .byline a,
 .prose .byline a:visited {
   color: #333;
 }

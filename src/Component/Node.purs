@@ -11,7 +11,6 @@ import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
 import Web.Event.Event (stopPropagation)
-import Web.Event.Internal.Types (Event)
 import Web.UIEvent.MouseEvent (MouseEvent, toEvent)
 
 type Slot = H.Slot Query Message

@@ -1,10 +1,11 @@
-module Parse (ParseErr, parse) where
+module Parse (ParseErr, expr, lambda, parse) where
 
 import Prelude
 
 import Control.Alt ((<|>))
 import Control.Lazy (fix)
 import Core (Node, Expr(..))
+import Data.Char.Unicode (isAlpha)
 import Data.Either (Either)
 import Text.Parsing.Parser as P
 import Text.Parsing.Parser.Combinators as C
@@ -24,9 +25,12 @@ lexer = T.makeTokenParser langDef
 
 langDef :: T.LanguageDef
 langDef = T.LanguageDef (T.unGenLanguageDef L.emptyDef)
-  { identLetter = T.letter
-  , identStart = T.letter
+  { identLetter = alphaNotLambda
+  , identStart = alphaNotLambda
   }
+
+alphaNotLambda :: Parser Char
+alphaNotLambda = S.satisfy $ \c -> isAlpha c && c /= 'λ'
 
 expr :: Parser Node
 expr = fix $ \p -> (C.try var) <|> (C.try $ lambda p) <|> (C.try $ apply' p)
@@ -41,7 +45,7 @@ var = node $ Var <$> lexer.identifier
 
 lambda :: Parser Node -> Parser Node
 lambda e = node $ do
-  _ <- lexer.lexeme $ S.char '\\'
+  _ <- lexer.lexeme $ S.oneOf ['λ','\\']
   param <- lexer.identifier
   _ <- lexer.lexeme $ S.char '.'
   body  <- e

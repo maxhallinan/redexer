@@ -3,22 +3,26 @@ module Component.Stepper (component) where
 import Prelude
 
 import Component.Node as Node
-import Control.Apply (lift2)
 import Core as Core
-import Parse as Parse
-import Data.Array ((:), head, mapWithIndex, reverse, snoc)
-import Data.Either (Either(..), either)
-import Data.Maybe (Maybe(..), maybe)
+import Data.Array ((:), head, mapWithIndex, reverse)
+import Data.Either (Either(..))
+import Data.Maybe (Maybe(..))
 import Data.Symbol (SProxy(..))
 import Data.Tuple (Tuple(..))
-import Debug.Trace (spy)
 import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
+import Effect.Console (log)
 import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.Properties as HP
+import Parse as Parse
 
-type State = { lines :: Array Core.Node }
+type State = 
+  { defaultContent :: String
+  , lines :: Array Core.Node 
+  }
+
+type Input = { defaultContent :: String }
 
 data Action = Initialize | Applied String
 
@@ -30,18 +34,21 @@ type ChildSlots = ( nodeSlot :: Node.Slot SlotIndex
 _nodeSlot :: SProxy "nodeSlot"
 _nodeSlot = SProxy
 
-component :: forall q i o. H.Component HH.HTML q i o Aff
+component :: forall q o. H.Component HH.HTML q Input o Aff
 component =
   H.mkComponent
-    { initialState: const initialState
+    { initialState: initState
     , render
     , eval: H.mkEval $ H.defaultEval { handleAction = handleAction
                                      , initialize = initialize
                                      }
     }
 
-initialState :: State
-initialState = { lines: mempty }
+initState :: Input -> State
+initState { defaultContent } = 
+  { defaultContent
+  , lines: mempty
+  }
 
 render :: State -> H.ComponentHTML Action ChildSlots Aff
 render state =
@@ -83,7 +90,7 @@ handleApplied id = do
                 Left err -> do
                   pure unit
                 Right newTree ->
-                  H.modify_ (\s -> { lines: (newTree : s.lines)})
+                  H.modify_ (\s -> s{ lines = (newTree : s.lines)})
         _ -> do
           pure unit
     Nothing -> do
@@ -105,10 +112,12 @@ initialize = Just Initialize
 
 handleInitialize :: forall o. H.HalogenM State Action ChildSlots o Aff Unit
 handleInitialize = do
-    let parsed = Parse.parse "((\\x.\\y.\\s.\\z.((x s) ((y s) z)) \\s.\\z.(s z)) \\s.\\z.(s (s z)))"
+    defaultContent <- H.gets _.defaultContent
+    let parsed = Parse.parse defaultContent
     case parsed of
       Left err -> do
+        liftEffect $ log (show err)
         pure unit
       Right ast -> do
         ast' <- liftEffect $ Core.replaceIds ast
-        H.modify_ (\s -> { lines: ast' : s.lines })
+        H.modify_ (\s -> s{ lines = ast' : s.lines })

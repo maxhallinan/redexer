@@ -82,7 +82,7 @@ instance arbitraryArbLambda :: Arbitrary ArbLambda where
 
 genLambda :: Gen String -> Gen String
 genLambda genExpr' = token $ do
-  l <- token $ pure "\\"
+  l <- token $ oneOf $ (pure "\\" :| [pure "λ"])
   v <- genVar
   d <- token $ pure "."
   e <- genExpr'

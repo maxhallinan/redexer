@@ -9,6 +9,7 @@ You can edit this file as you like.
     , "control"
     , "debug"
     , "effect"
+    , "generics-rep"
     , "halogen"
     , "parsing"
     , "psci-support"

@@ -3,44 +3,47 @@ module Main where
 import Prelude
 
 import Component.Stepper as Stepper
-import Data.Array ((:))
 import Data.Maybe (Maybe(..))
-import Data.Foldable (foldl)
+import Data.String.Common (trim)
 import Data.Traversable (traverse)
 import Effect (Effect)
 import Halogen.Aff as HA
 import Halogen.VDom.Driver (runUI)
-import Web.DOM.Node (Node, childNodes, removeChild)
+import Web.DOM.Node (Node, childNodes, removeChild, textContent)
 import Web.DOM.NodeList (toArray)
 import Web.DOM.ParentNode (QuerySelector(..), querySelectorAll)
 import Web.HTML (window)
 import Web.HTML.Window (document)
-import Web.HTML.HTMLDocument (toParentNode)
-import Web.HTML.HTMLElement (HTMLElement, fromNode)
+import Web.HTML.HTMLDocument (HTMLDocument, toParentNode)
+import Web.HTML.HTMLElement (fromNode)
 
 main :: Effect Unit
 main = do
-  doc <- map toParentNode $ window >>= document
-  nodes <- querySelectorAll (QuerySelector ".explorable") doc >>= toArray
-  _ <- traverse removeChildren nodes
-  htmlElements <- toHTMLElements nodes
-  _ <- traverse initStepper htmlElements
-  pure unit
-  where
-    initStepper element = do
-      HA.runHalogenAff do
-        body <- HA.awaitBody
-        runUI Stepper.component unit element
+  doc <- getDocument
+  nodes <- getStepperNodes doc
+  initSteppers nodes
 
-    toHTMLElements :: Array Node -> Effect (Array HTMLElement)
-    toHTMLElements = pure <<< foldl toHTMLElementArray mempty <<< map fromNode
-      where
-        toHTMLElementArray :: Array HTMLElement -> Maybe HTMLElement -> Array HTMLElement
-        toHTMLElementArray els (Just el) = (el:els)
-        toHTMLElementArray els Nothing = els
+getDocument :: Effect HTMLDocument
+getDocument = window >>= document
+
+getStepperNodes :: HTMLDocument -> Effect (Array Node)
+getStepperNodes =
+  toArray
+  <=< querySelectorAll (QuerySelector ".stepper")
+  <<< toParentNode
+
+initSteppers :: Array Node -> Effect Unit
+initSteppers = void <<< traverse init
+  where init node =
+          case fromNode node of
+            Nothing ->
+              pure unit
+            Just element -> do
+              defaultContent <- map trim (textContent node)
+              removeChildren node
+              HA.runHalogenAff $ runUI Stepper.component { defaultContent } element
 
 removeChildren :: Node -> Effect Unit
-removeChildren node = do
+removeChildren node = void do
   childNodeArray <- childNodes node >>= toArray
-  _ <- traverse (flip removeChild node) childNodeArray
-  pure unit
+  traverse (flip removeChild node) childNodeArray
