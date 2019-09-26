@@ -116,7 +116,6 @@ handleInitialize = do
     let parsed = Parse.parse defaultContent
     case parsed of
       Left err -> do
-        liftEffect $ log (show err)
         pure unit
       Right ast -> do
         ast' <- liftEffect $ Core.replaceIds ast
