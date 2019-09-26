@@ -2,6 +2,7 @@
   "scripts": {
     "build": "spago bundle-app --main Main --to public/bundle.js; browserify public/bundle.js -o public/bundle.js; parcel build public/index.html",
     "postinstall": "spago install",
+    "start": "parcel serve public/index.html",
     "test": "spago test"
   },
   "dependencies": {
