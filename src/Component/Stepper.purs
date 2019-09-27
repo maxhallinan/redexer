@@ -4,22 +4,23 @@ import Prelude
 
 import Component.Node as Node
 import Core as Core
-import Data.Array ((:), head, mapWithIndex, reverse)
+import Data.Array ((:), head, index, mapWithIndex, reverse, snoc)
 import Data.Either (Either(..))
 import Data.Maybe (Maybe(..))
 import Data.Symbol (SProxy(..))
 import Data.Tuple (Tuple(..))
+import Data.Foldable (length)
 import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
-import Effect.Console (log)
 import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.Properties as HP
 import Parse as Parse
 
-type State = 
+type State =
   { defaultContent :: String
-  , lines :: Array Core.Node 
+  , lines :: Array Core.Node
+  , clickedNodes :: Array String
   }
 
 type Input = { defaultContent :: String }
@@ -45,8 +46,9 @@ component =
     }
 
 initState :: Input -> State
-initState { defaultContent } = 
-  { defaultContent
+initState { defaultContent } =
+  { clickedNodes: mempty
+  , defaultContent
   , lines: mempty
   }
 
@@ -54,13 +56,22 @@ render :: State -> H.ComponentHTML Action ChildSlots Aff
 render state =
   HH.div
     [ HP.class_ $ HH.ClassName "stepper" ]
-    (mapWithIndex renderLine $ reverse state.lines)
+    (mapWithIndex (renderLine state) $ reverse state.lines)
 
-renderLine :: Int -> Core.Node -> H.ComponentHTML Action ChildSlots Aff
-renderLine index ast =
+renderLine :: State -> Int -> Core.Node -> H.ComponentHTML Action ChildSlots Aff
+renderLine state i ast =
+  let
+      clickedNodeId = index state.clickedNodes i
+
+      isLast = i == (length state.lines) - 1 
+
+      c = if isLast
+            then "last"
+            else ""
+  in
   HH.div
-    [ HP.class_ $ HH.ClassName "line" ]
-    [ HH.slot _nodeSlot index Node.component { ast, lineIndex: index } handleMessage ]
+    [ HP.classes [ HH.ClassName "line", HH.ClassName c ] ]
+    [ HH.slot _nodeSlot i Node.component { ast, clickedNodeId, lineIndex: i, isLast } handleMessage ]
 
 handleMessage :: Node.Message -> Maybe Action
 handleMessage (Node.Applied id) = Just $ Applied id
@@ -90,7 +101,7 @@ handleApplied id = do
                 Left err -> do
                   pure unit
                 Right newTree ->
-                  H.modify_ (\s -> s{ lines = (newTree : s.lines)})
+                  H.modify_ (\s -> s { clickedNodes = snoc s.clickedNodes id, lines = (newTree : s.lines)})
         _ -> do
           pure unit
     Nothing -> do

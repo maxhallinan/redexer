@@ -198,20 +198,26 @@ h6 {
   padding: 1.6rem 1.5rem;
 }
 
+.lambda {}
+
 .line {
   font-family: "TriplicateT3Code";
   font-size: 1.125rem;
   font-size: 1rem;
 }
 
+.line .clicked {
+  background: rgba(255, 255, 0, 0.3);
+}
+
 .apply.applicable {
   cursor: pointer;
 }
 
-.apply.applicable:hover {
+.line.last .apply.applicable:hover {
   background: rgba(255, 255, 0, 0.3);
 }
 
-.apply.applicable:hover .apply.applicable:hover {
+.last.line .apply.applicable:hover .apply.applicable:hover {
   background: rgba(255, 255, 0, 0.8);
 }

@@ -3,7 +3,7 @@ module Component.Node (Slot, Input, Message(..), Query, component) where
 import Prelude
 
 import Core as Core
-import Data.Maybe (Maybe(..))
+import Data.Maybe (Maybe(..), maybe)
 import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
 import Halogen as H
@@ -15,24 +15,25 @@ import Web.UIEvent.MouseEvent (MouseEvent, toEvent)
 
 type Slot = H.Slot Query Message
 
-type Input = { ast :: Core.Node, lineIndex :: Int }
+type Input = { ast :: Core.Node, clickedNodeId :: Maybe String, lineIndex :: Int, isLast :: Boolean }
 
-data Action = ApplyClicked String MouseEvent
+data Action = ApplyClicked String MouseEvent | InputUpdated Input
 
-type State = { ast :: Core.Node, lineIndex :: Int }
+type State = { ast :: Core.Node, clickedNodeId :: Maybe String, lineIndex :: Int, isLast :: Boolean }
 
 data Message = Applied String
 
-data Query a = Bloop
+data Query a
 
 type ChildSlots = ()
 
 component :: H.Component HH.HTML Query Input Message Aff
 component =
-  H.mkComponent 
+  H.mkComponent
   { initialState: initState
   , render: renderNode
   , eval: H.mkEval $ H.defaultEval { handleAction = handleAction
+                                   , receive = Just <<< InputUpdated
                                    }
   }
 
@@ -46,8 +47,8 @@ renderNode state =
            then HH.span [ HP.class_ $ HH.ClassName "edit" ] [ HH.text "edit" ]
            else HH.text ""
   in
-  HH.div 
-    [] 
+  HH.div
+    []
     [ render state
     , edit
     ]
@@ -60,7 +61,8 @@ render state = do
     Core.Lambda param body ->
       HH.span
         []
-        [ HH.text $ "λ" <> param <> "."
+        [ HH.span [ HP.classes [ HH.ClassName "lambda" ] ] [ HH.text "λ" ]
+        , HH.text $ param <> "."
         , render $ state { ast = body }
         ]
     Core.Apply e1 e2 ->
@@ -68,16 +70,20 @@ render state = do
           c = if isApplicable e1
               then "applicable"
               else ""
+
+          isClicked = if (maybe "" identity state.clickedNodeId) == state.ast.id
+                        then "clicked"
+                        else ""
       in
       HH.span
-        [ HP.classes [ HH.ClassName "apply", HH.ClassName c ]
+        [ HP.classes [ HH.ClassName "apply", HH.ClassName c, HH.ClassName isClicked ]
         , HE.onClick (handleApplyClick state.ast.id e1)
-        ] 
-        [ HH.text "(" 
+        ]
+        [ HH.text "("
         , render $ state { ast = e1 }
-        , HH.text " " 
+        , HH.text " "
         , render $ state { ast = e2 }
-        , HH.text ")" 
+        , HH.text ")"
         ]
 
 handleApplyClick :: String -> Core.Node -> MouseEvent -> Maybe Action
@@ -93,6 +99,8 @@ isApplicable { id: _, expr: Core.Lambda _ _ } = true
 isApplicable { id: _, expr: _ } = false
 
 handleAction :: Action -> H.HalogenM State Action ChildSlots Message Aff Unit
+handleAction (InputUpdated input) =
+  H.modify_ (\s -> s { clickedNodeId = input.clickedNodeId, isLast = input.isLast })
 handleAction (ApplyClicked id mouseEvent) = do
   _ <- liftEffect $ stopPropagation $ toEvent mouseEvent
   H.raise (Applied id)
