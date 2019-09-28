@@ -5,7 +5,7 @@ import Prelude
 import Component.Node as Node
 import Component.Util as U
 import Core as Core
-import Data.Array ((:), head, index, mapWithIndex, reverse, snoc)
+import Data.Array (index, last, mapWithIndex, reverse, snoc)
 import Data.Either (Either(..))
 import Data.Maybe (Maybe(..))
 import Data.Symbol (SProxy(..))
@@ -57,7 +57,7 @@ render :: State -> H.ComponentHTML Action ChildSlots Aff
 render state =
   HH.div
     [ U.className "stepper" ]
-    (mapWithIndex (renderLine state) $ reverse state.lines)
+    (mapWithIndex (renderLine state) state.lines)
 
 renderLine :: State -> Int -> Core.Node -> H.ComponentHTML Action ChildSlots Aff
 renderLine state i ast =
@@ -107,13 +107,13 @@ handleApplied id = do
                 Left err -> do
                   pure unit
                 Right newTree ->
-                  H.modify_ (\s -> s { clickedNodes = snoc s.clickedNodes id, lines = (newTree : s.lines)})
+                  H.modify_ (\s -> s { clickedNodes = snoc s.clickedNodes id, lines = appendLine newTree s.lines })
         _ -> do
           pure unit
     Nothing -> do
       pure unit
   where
-    lastLine = head <<< _.lines
+    lastLine = last <<< _.lines
     findNode = Core.findNode id
 
     toE1 :: Core.Node -> Maybe Core.Node
@@ -136,4 +136,7 @@ handleInitialize = do
         pure unit
       Right ast -> do
         ast' <- liftEffect $ Core.replaceIds ast
-        H.modify_ (\s -> s{ lines = ast' : s.lines })
+        H.modify_ (\s -> s { lines = appendLine ast' s.lines })
+
+appendLine :: Core.Node -> Array Core.Node -> Array Core.Node
+appendLine = flip snoc
