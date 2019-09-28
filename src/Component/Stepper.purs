@@ -3,6 +3,7 @@ module Component.Stepper (component) where
 import Prelude
 
 import Component.Node as Node
+import Component.Util as U
 import Core as Core
 import Data.Array ((:), head, index, mapWithIndex, reverse, snoc)
 import Data.Either (Either(..))
@@ -14,23 +15,23 @@ import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
 import Halogen as H
 import Halogen.HTML as HH
-import Halogen.HTML.Properties as HP
 import Parse as Parse
 
-type State =
+type Input =
   { defaultContent :: String
-  , lines :: Array Core.Node
-  , clickedNodes :: Array String
   }
 
-type Input = { defaultContent :: String }
+type State =
+  { clickedNodes :: Array String
+  , defaultContent :: String
+  , lines :: Array Core.Node
+  }
 
 data Action = Initialize | Applied String
 
-type SlotIndex = Int
+type ChildSlots = ( nodeSlot :: Node.Slot SlotIndex )
 
-type ChildSlots = ( nodeSlot :: Node.Slot SlotIndex
-                  )
+type SlotIndex = Int
 
 _nodeSlot :: SProxy "nodeSlot"
 _nodeSlot = SProxy
@@ -38,11 +39,11 @@ _nodeSlot = SProxy
 component :: forall q o. H.Component HH.HTML q Input o Aff
 component =
   H.mkComponent
-    { initialState: initState
-    , render
-    , eval: H.mkEval $ H.defaultEval { handleAction = handleAction
+    { eval: H.mkEval $ H.defaultEval { handleAction = handleAction
                                      , initialize = initialize
                                      }
+    , initialState: initState
+    , render
     }
 
 initState :: Input -> State
@@ -55,26 +56,31 @@ initState { defaultContent } =
 render :: State -> H.ComponentHTML Action ChildSlots Aff
 render state =
   HH.div
-    [ HP.class_ $ HH.ClassName "stepper" ]
+    [ U.className "stepper" ]
     (mapWithIndex (renderLine state) $ reverse state.lines)
 
 renderLine :: State -> Int -> Core.Node -> H.ComponentHTML Action ChildSlots Aff
 renderLine state i ast =
   let
-      clickedNodeId = index state.clickedNodes i
+      isLast = i == length state.lines - 1
 
-      isLast = i == (length state.lines) - 1 
+      nodeInput =
+        { ast
+        , clickedNodeId: index state.clickedNodes i
+        , isLast
+        , lineIndex: i
+        }
 
-      c = if isLast
-            then "last"
-            else ""
+      cn = [ { name: "line", cond: true }
+           , { name: "last", cond: isLast }
+           ]
   in
   HH.div
-    [ HP.classes [ HH.ClassName "line", HH.ClassName c ] ]
-    [ HH.slot _nodeSlot i Node.component { ast, clickedNodeId, lineIndex: i, isLast } handleMessage ]
+    [ U.classNames_ cn ]
+    [ HH.slot _nodeSlot i Node.component nodeInput handleNodeMessage ]
 
-handleMessage :: Node.Message -> Maybe Action
-handleMessage (Node.Applied id) = Just $ Applied id
+handleNodeMessage :: Node.Message -> Maybe Action
+handleNodeMessage (Node.Applied id) = Just $ Applied id
 
 handleAction :: forall o. Action -> H.HalogenM State Action ChildSlots o Aff Unit
 handleAction action = case action of

@@ -136,9 +136,7 @@ h6 {
 }
 
 .prose {
-  /* margin: 0 auto; */
   max-width: 43.34rem; /* <cell-width> + <padding-width * 2> */
-  /* padding: 0 1rem; */
 }
 
 .code {
@@ -194,23 +192,19 @@ h6 {
 }
 
 .article {
-  /* padding: 1.9rem 1.5rem; */
   padding: 1.6rem 1.5rem;
 }
-
-.lambda {}
 
 .line {
   font-family: "TriplicateT3Code";
   font-size: 1.125rem;
-  font-size: 1rem;
 }
 
 .line .clicked {
-  background: rgba(255, 255, 0, 0.3);
+  text-decoration: line-through;
 }
 
-.apply.applicable {
+.line.last .apply.applicable {
   cursor: pointer;
 }
 

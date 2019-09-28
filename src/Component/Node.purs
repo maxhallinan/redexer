@@ -2,6 +2,7 @@ module Component.Node (Slot, Input, Message(..), Query, component) where
 
 import Prelude
 
+import Component.Util as U
 import Core as Core
 import Data.Maybe (Maybe(..), maybe)
 import Effect.Aff (Aff)
@@ -15,11 +16,21 @@ import Web.UIEvent.MouseEvent (MouseEvent, toEvent)
 
 type Slot = H.Slot Query Message
 
-type Input = { ast :: Core.Node, clickedNodeId :: Maybe String, lineIndex :: Int, isLast :: Boolean }
+type Input =
+  { ast :: Core.Node
+  , clickedNodeId :: Maybe String
+  , lineIndex :: Int
+  , isLast :: Boolean
+  }
 
 data Action = ApplyClicked String MouseEvent | InputUpdated Input
 
-type State = { ast :: Core.Node, clickedNodeId :: Maybe String, lineIndex :: Int, isLast :: Boolean }
+type State =
+  { ast :: Core.Node
+  , clickedNodeId :: Maybe String
+  , lineIndex :: Int
+  , isLast :: Boolean
+  }
 
 data Message = Applied String
 
@@ -67,16 +78,13 @@ render state = do
         ]
     Core.Apply e1 e2 ->
       let
-          c = if isApplicable e1
-              then "applicable"
-              else ""
-
-          isClicked = if (maybe "" identity state.clickedNodeId) == state.ast.id
-                        then "clicked"
-                        else ""
+          cn = [ {name: "applicable", cond: isApplicable e1}
+               , {name: "apply", cond: true}
+               , {name: "clicked", cond: (maybe "" identity state.clickedNodeId) == state.ast.id}
+               ]
       in
       HH.span
-        [ HP.classes [ HH.ClassName "apply", HH.ClassName c, HH.ClassName isClicked ]
+        [ U.classNames_ cn
         , HE.onClick (handleApplyClick state.ast.id e1)
         ]
         [ HH.text "("
