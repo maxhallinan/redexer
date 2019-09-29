@@ -62,17 +62,16 @@ render state =
 renderLine :: State -> Int -> Core.Node -> H.ComponentHTML Action ChildSlots Aff
 renderLine { lines, reducedNodes } i ast =
   let
-      isLast = i == length lines - 1
+      linePos = Node.toLinePos { current: i, total: length lines }
 
       nodeInput =
         { ast
         , clickedNodeId: Array.index reducedNodes i
-        , isLast
-        , lineIndex: i
+        , linePos
         }
 
       cn = [ { name: "line", cond: true }
-           , { name: "last", cond: isLast }
+           , { name: "last", cond: linePos == Node.Last || linePos == Node.Only }
            ]
   in
   HH.div

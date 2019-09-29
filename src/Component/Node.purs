@@ -1,4 +1,12 @@
-module Component.Node (Slot, Input, Message(..), Query, component) where
+module Component.Node
+  ( Slot
+  , Input
+  , LinePos(..)
+  , Message(..)
+  , Query
+  , component
+  , toLinePos
+  ) where
 
 import Prelude
 
@@ -19,17 +27,28 @@ type Slot = H.Slot Query Message
 type Input =
   { ast :: Core.Node
   , clickedNodeId :: Maybe String
-  , lineIndex :: Int
-  , isLast :: Boolean
+  , linePos :: LinePos
   }
+
+data LinePos = First | Last | Middle | Only
+derive instance eqLinePos :: Eq LinePos
+
+toLinePos :: { current :: Int, total :: Int } -> LinePos
+toLinePos { current, total } =
+  if total == 1
+  then Only
+  else if current == 0
+    then First
+    else if current == total - 1
+      then Last
+      else Middle
 
 data Action = ApplyClicked String MouseEvent | InputUpdated Input
 
 type State =
   { ast :: Core.Node
   , clickedNodeId :: Maybe String
-  , lineIndex :: Int
-  , isLast :: Boolean
+  , linePos :: LinePos
   }
 
 data Message = Applied String
@@ -54,7 +73,7 @@ initState = identity
 renderNode :: State -> H.ComponentHTML Action ChildSlots Aff
 renderNode state =
   let
-    edit = if state.lineIndex == 0
+    edit = if state.linePos == First || state.linePos == Only
            then HH.span [ HP.class_ $ HH.ClassName "edit" ] [ HH.text "edit" ]
            else HH.text ""
   in
@@ -107,8 +126,7 @@ isApplicable { id: _, expr: Core.Lambda _ _ } = true
 isApplicable { id: _, expr: _ } = false
 
 handleAction :: Action -> H.HalogenM State Action ChildSlots Message Aff Unit
-handleAction (InputUpdated input) =
-  H.modify_ (\s -> s { clickedNodeId = input.clickedNodeId, isLast = input.isLast })
+handleAction (InputUpdated input) = H.modify_ (const input)
 handleAction (ApplyClicked id mouseEvent) = do
   _ <- liftEffect $ stopPropagation $ toEvent mouseEvent
   H.raise (Applied id)
