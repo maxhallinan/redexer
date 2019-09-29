@@ -18,16 +18,19 @@ import Effect.Class (liftEffect)
 import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
-import Halogen.HTML.Properties as HP
 import Web.Event.Event (stopPropagation)
 import Web.UIEvent.MouseEvent (MouseEvent, toEvent)
 
-type Slot = H.Slot Query Message
-
 type Input =
   { ast :: Core.Node
-  , clickedNodeId :: Maybe String
   , linePos :: LinePos
+  , reducedNodeId :: Maybe String
+  }
+
+type State =
+  { ast :: Core.Node
+  , linePos :: LinePos
+  , reducedNodeId :: Maybe String
   }
 
 data LinePos = First | Last | Middle | Only
@@ -45,88 +48,102 @@ toLinePos { current, total } =
 
 data Action = ApplyClicked String MouseEvent | InputUpdated Input
 
-type State =
-  { ast :: Core.Node
-  , clickedNodeId :: Maybe String
-  , linePos :: LinePos
-  }
-
 data Message = Applied String
 
 data Query a
+
+type Slot = H.Slot Query Message
 
 type ChildSlots = ()
 
 component :: H.Component HH.HTML Query Input Message Aff
 component =
   H.mkComponent
-  { initialState: initState
-  , render: renderNode
+  { initialState: identity -- Input -> State
+  , render
   , eval: H.mkEval $ H.defaultEval { handleAction = handleAction
                                    , receive = Just <<< InputUpdated
                                    }
   }
 
-initState :: Input -> State
-initState = identity
-
-renderNode :: State -> H.ComponentHTML Action ChildSlots Aff
-renderNode state =
-  let
-    edit = if state.linePos == First || state.linePos == Only
-           then HH.span [ HP.class_ $ HH.ClassName "edit" ] [ HH.text "edit" ]
-           else HH.text ""
-  in
+render :: State -> H.ComponentHTML Action ChildSlots Aff
+render state =
   HH.div
     []
-    [ render state
-    , edit
+    [ renderNode state
+    , renderEditBtn state
     ]
 
-render :: State -> H.ComponentHTML Action ChildSlots Aff
-render state = do
+renderEditBtn :: State -> H.ComponentHTML Action ChildSlots Aff
+renderEditBtn { linePos } =
+  case linePos of
+    First ->
+      editBtn
+    Last ->
+      placeholder
+    Middle ->
+      placeholder
+    Only ->
+      editBtn
+  where editBtn = HH.span [ U.className "edit" ] [ HH.text "edit" ]
+        placeholder = HH.text ""
+
+renderNode :: State -> H.ComponentHTML Action ChildSlots Aff
+renderNode state = do
   case state.ast.expr of
     Core.Var varName ->
-      HH.text varName
+      renderVar { varName }
     Core.Lambda param body ->
+      renderLambda { param, body } state
+    Core.Apply fn arg ->
+      renderApply { fn, arg } state
+
+renderVar :: { varName :: String } -> H.ComponentHTML Action ChildSlots Aff
+renderVar { varName } =
+  HH.span [ U.className "variable" ] [ HH.text varName ]
+
+renderLambda :: { param :: String, body :: Core.Node } -> State -> H.ComponentHTML Action ChildSlots Aff
+renderLambda { param, body } state =
       HH.span
-        []
-        [ HH.span [ HP.classes [ HH.ClassName "lambda" ] ] [ HH.text "λ" ]
+        [ U.className "lambda" ]
+        [ HH.text "λ"
         , HH.text $ param <> "."
-        , render $ state { ast = body }
-        ]
-    Core.Apply e1 e2 ->
-      let
-          cn = [ {name: "applicable", cond: isApplicable e1}
-               , {name: "apply", cond: true}
-               , {name: "clicked", cond: (maybe "" identity state.clickedNodeId) == state.ast.id}
-               ]
-      in
-      HH.span
-        [ U.classNames_ cn
-        , HE.onClick (handleApplyClick state.ast.id e1)
-        ]
-        [ HH.text "("
-        , render $ state { ast = e1 }
-        , HH.text " "
-        , render $ state { ast = e2 }
-        , HH.text ")"
+        , renderNode $ state { ast = body }
         ]
 
-handleApplyClick :: String -> Core.Node -> MouseEvent -> Maybe Action
-handleApplyClick id e1 mouseEvent =
-  case e1.expr of
-    Core.Lambda _ _ ->
-      Just $ ApplyClicked id mouseEvent
-    _ ->
-      Nothing
+renderApply :: { fn :: Core.Node, arg :: Core.Node } -> State -> H.ComponentHTML Action ChildSlots Aff
+renderApply { fn, arg } s@{ ast, reducedNodeId } =
+  let
+      isClickable = Core.isReduceable fn
 
-isApplicable :: Core.Node -> Boolean
-isApplicable { id: _, expr: Core.Lambda _ _ } = true
-isApplicable { id: _, expr: _ } = false
+      isReducedNode = maybe false (_ == ast.id) reducedNodeId
+
+      cn = [ {name: "applicable", cond: isClickable}
+           , {name: "apply", cond: true}
+           , {name: "clicked", cond: isReducedNode}
+           ]
+
+      handleClick event =
+        if isClickable
+          then Just $ ApplyClicked ast.id event
+          else Nothing
+  in
+  HH.span
+    [ U.classNames_ cn
+    , HE.onClick handleClick
+    ]
+    [ HH.text "("
+    , renderNode $ s { ast = fn }
+    , HH.text " "
+    , renderNode $ s { ast = arg }
+    , HH.text ")"
+    ]
 
 handleAction :: Action -> H.HalogenM State Action ChildSlots Message Aff Unit
-handleAction (InputUpdated input) = H.modify_ (const input)
-handleAction (ApplyClicked id mouseEvent) = do
-  _ <- liftEffect $ stopPropagation $ toEvent mouseEvent
-  H.raise (Applied id)
+handleAction = case _ of
+  InputUpdated input ->
+    H.put input
+  ApplyClicked id event -> do
+    stopProp event
+    H.raise $ Applied id
+  where stopProp = void <<< liftEffect <<< stopPropagation <<< toEvent

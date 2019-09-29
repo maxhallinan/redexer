@@ -10,6 +10,7 @@ module Core
   , findNode
   , getApplyParts
   , isExprType
+  , isReduceable
   , genIds
   , replaceNode
   ) where
@@ -155,3 +156,7 @@ betaReduction nodeId tree = do
   reduced <- hush $ applyLambda lambda arg
   newTree <- hush $ replaceNode nodeId reduced tree
   pure newTree
+
+isReduceable :: Node -> Boolean
+isReduceable { id: _, expr: Lambda _ _ } = true
+isReduceable { id: _, expr: _ } = false

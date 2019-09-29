@@ -66,7 +66,7 @@ renderLine { lines, reducedNodes } i ast =
 
       nodeInput =
         { ast
-        , clickedNodeId: Array.index reducedNodes i
+        , reducedNodeId: Array.index reducedNodes i
         , linePos
         }
 
