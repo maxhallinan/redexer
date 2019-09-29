@@ -5,16 +5,18 @@ module Core
   , Node
   , ReplaceErr(..)
   , applyLambda
+  , betaReduction
   , eqNode
   , findNode
+  , getApplyParts
   , isExprType
-  , replaceIds
+  , genIds
   , replaceNode
   ) where
 
 import Prelude
 
-import Data.Either (Either(..))
+import Data.Either (Either(..), hush)
 import Data.Maybe (Maybe(..), maybe)
 import Data.UUID as U
 import Effect (Effect)
@@ -128,16 +130,28 @@ applyLambda fn arg =
           , expr: Apply (subParam paramName n1) (subParam paramName n2)
           }
 
-replaceIds :: Node -> Effect Node
-replaceIds tree = do
+genIds :: Node -> Effect Node
+genIds tree = do
   id <- U.toString <$> U.genUUID
   case tree.expr of
     Var _ ->
       pure $ { id: id, expr: tree.expr }
     Lambda param body -> do
-      body' <- replaceIds body
+      body' <- genIds body
       pure $ { id: id, expr: Lambda param body' }
     Apply e1 e2 -> do
-       e1' <- replaceIds e1
-       e2' <- replaceIds e2
+       e1' <- genIds e1
+       e2' <- genIds e2
        pure $ { id: id, expr: Apply e1' e2' }
+
+getApplyParts :: Node -> Maybe { lambda :: Node, arg :: Node }
+getApplyParts { id: _, expr: (Apply lambda arg) } = Just $ { lambda, arg }
+getApplyParts _ = Nothing
+
+betaReduction :: String -> Node -> Maybe Node
+betaReduction nodeId tree = do
+  node <- findNode nodeId tree
+  { lambda, arg } <- getApplyParts node
+  reduced <- hush $ applyLambda lambda arg
+  newTree <- hush $ replaceNode nodeId reduced tree
+  pure newTree
