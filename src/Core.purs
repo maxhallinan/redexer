@@ -6,9 +6,11 @@ module Core
   , ReplaceErr(..)
   , applyLambda
   , betaReduction
+  , closestReduceableAncestor 
   , eqNode
   , findNode
   , getApplyParts
+  , isDescendantOf
   , isExprType
   , isReduceable
   , genIds
@@ -17,6 +19,7 @@ module Core
 
 import Prelude
 
+import Control.Alt ((<|>))
 import Data.Either (Either(..), hush)
 import Data.Maybe (Maybe(..), maybe)
 import Data.UUID as U
@@ -158,5 +161,44 @@ betaReduction nodeId tree = do
   pure $ { node: reduced, tree: newTree }
 
 isReduceable :: Node -> Boolean
-isReduceable { id: _, expr: Lambda _ _ } = true
-isReduceable { id: _, expr: _ } = false
+isReduceable node = 
+  case node.expr of
+    Apply ({ expr: Lambda _ _ }) _ ->
+      true
+    _ -> 
+      false
+
+closestReduceableAncestor :: Node -> Node -> Maybe Node
+closestReduceableAncestor node tree = 
+  if isReduceable node 
+    then Just node
+    else go Nothing tree
+  where 
+    go closest subtree =
+      if node.id == subtree.id
+        then closest
+        else case subtree.expr of
+          Var _ ->
+            Nothing
+          Lambda _ body ->
+            go closest body
+          Apply e1 e2 ->
+            let
+              nextClosest = 
+                if isReduceable subtree
+                  then Just subtree
+                  else closest
+            in
+            go nextClosest e1 <|> go nextClosest e2
+
+isDescendantOf :: String -> Node -> Boolean
+isDescendantOf nodeId tree =
+  if nodeId == tree.id
+    then true
+    else case tree.expr of
+      Var _ ->
+        false
+      Lambda _ body ->
+        isDescendantOf nodeId body
+      Apply e1 e2 ->
+        isDescendantOf nodeId e1 || isDescendantOf nodeId e2

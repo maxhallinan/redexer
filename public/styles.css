@@ -200,30 +200,16 @@ h6 {
   font-size: 1.125rem;
 }
 
-.line .clicked {
+.line .done {
   text-decoration: line-through;
-  /* background: rgba(81,232,152,0.5); */
 }
 
-.line .highlighted,
-.line .clicked.highlighted {
+.line .success {
   background: rgba(81,232,152,0.5);
   cursor: default;
-  text-decoration: none;
 }
 
-.line.last .apply.applicable {
-  cursor: pointer;
-}
-
-.line.last .apply.applicable:hover {
+.line.last .todo {
   background: rgba(242,214,0,0.5);
-}
-
-.last.line .apply.applicable:hover .apply.applicable:hover {
-  background: rgba(242,214,0,0.75);
-}
-
-.line.hovering .clicked {
-  text-decoration: none;
+  cursor: pointer;
 }

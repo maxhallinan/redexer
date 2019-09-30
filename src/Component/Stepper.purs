@@ -4,6 +4,7 @@ import Prelude
 
 import Component.Node as Node
 import Component.Util as U
+import Control.Alt ((<|>))
 import Core as Core
 import Data.Array (last, mapWithIndex, snoc)
 import Data.Array as Array
@@ -13,32 +14,33 @@ import Data.Map (Map)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), maybe)
 import Data.Symbol (SProxy(..))
-import Data.Tuple (Tuple(..))
 import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
 import Halogen as H
 import Halogen.HTML as HH
 import Parse as Parse
 
-import Debug.Trace (spy)
-
 type Input =
   { defaultContent :: String
   }
 
 type State =
-  { currentApplied :: Maybe { lineIndex :: Int, nodeId :: String }
+  { currentNode :: Maybe CurrentNode
   , defaultContent :: String
   , lines :: Array Core.Node
-  , reducedNodes :: Array String
+  , reductionOrder :: Array String
   , reductions :: Map String String
+  }
+
+type CurrentNode =
+  { lineIndex :: Int
+  , nodeId :: String
   }
 
 data Action
   = Initialize
   | Applied String
-  | ApplyHoverOn { lineIndex :: Int, nodeId :: String }
-  | ApplyHoverOff
+  | CurrentNodeChanged (Maybe CurrentNode)
 
 type ChildSlots = ( nodeSlot :: Node.Slot SlotIndex )
 
@@ -59,10 +61,10 @@ component =
 
 initState :: Input -> State
 initState { defaultContent } =
-  { currentApplied: Nothing
+  { currentNode: Nothing
   , defaultContent
   , lines: mempty
-  , reducedNodes: mempty
+  , reductionOrder: mempty
   , reductions: mempty
   }
 
@@ -73,49 +75,80 @@ render state =
     (mapWithIndex (renderLine state) state.lines)
 
 renderLine :: State -> Int -> Core.Node -> H.ComponentHTML Action ChildSlots Aff
-renderLine { currentApplied, lines, reducedNodes, reductions } i ast =
+renderLine state@{ currentNode, lines, reductionOrder, reductions } i ast =
   let
       linePos = Node.toLinePos { current: i, total: length lines }
 
       nodeInput =
         { ast
-        , highlightedNode: getHighlightedNodeId { currentLineIndex: i, reductions } currentApplied
-        , reducedNodeId: Array.index reducedNodes i
+        , focus: getNodeFocus { lineIndex: i } state
         , lineIndex: i
         , linePos
+        , reducedNodeId: Array.index reductionOrder i
         }
-
-      isHovering {lineIndex} = 
-        lineIndex == i || lineIndex + 1 == i
 
       cn = [ { name: "line", cond: true }
            , { name: "last", cond: linePos == Node.Last || linePos == Node.Only }
-           , { name: "hovering", cond: maybe false isHovering currentApplied }
            ]
   in
   HH.div
     [ U.classNames_ cn ]
     [ HH.slot _nodeSlot i Node.component nodeInput handleMessage ]
 
-getHighlightedNodeId
-  :: { currentLineIndex :: Int, reductions :: Map String String } 
-  -> Maybe { lineIndex :: Int , nodeId :: String } 
-  -> Maybe String
-getHighlightedNodeId { currentLineIndex, reductions } highlightedNode = highlightedNode >>= \{ lineIndex, nodeId } ->
-  if currentLineIndex == lineIndex
-    then map (const nodeId) (Map.lookup nodeId reductions)
-    else if (currentLineIndex - 1) == lineIndex
-      then Map.lookup nodeId reductions
+getNodeFocus :: { lineIndex :: Int } -> State -> Maybe Node.Focus
+getNodeFocus { lineIndex } state =
+  getSuccessFocus lineIndex state
+  <|> getTodoFocus lineIndex state
+  <|> getDoneFocus lineIndex state
+
+getSuccessFocus :: Int -> State -> Maybe Node.Focus
+getSuccessFocus lineIndex state = do
+  currentNode <- state.currentNode
+  if currentNode.lineIndex == lineIndex
+    then do
+      line <- Array.index state.lines lineIndex
+      reducedId <- Array.index state.reductionOrder lineIndex
+      reducedNode <- Core.findNode reducedId line
+      if Core.isDescendantOf currentNode.nodeId reducedNode
+        then pure $ makeFocus reducedId
+        else Nothing
+    else if currentNode.lineIndex + 1 == lineIndex
+      then do
+        line <- Array.index state.lines currentNode.lineIndex
+        reducedId <- Array.index state.reductionOrder currentNode.lineIndex
+        reducedNode <- Core.findNode reducedId line
+        successId <- Map.lookup reducedId state.reductions
+        if Core.isDescendantOf currentNode.nodeId reducedNode
+          then pure $ makeFocus successId
+          else Nothing
       else Nothing
+  where makeFocus nodeId = { nodeId, highlight: Node.Success }
+
+getTodoFocus :: Int -> State -> Maybe Node.Focus
+getTodoFocus lineIndex state = do
+  currentNode <- state.currentNode
+  line <- Array.index state.lines lineIndex
+  node <- Core.findNode currentNode.nodeId line
+  applyNode <- Core.closestReduceableAncestor node line
+  let isReduced = Nothing /= Array.index state.reductionOrder lineIndex
+  if lineIndex == currentNode.lineIndex && not isReduced
+    then pure $ makeFocus applyNode.id
+    else Nothing
+  where makeFocus nodeId = { nodeId, highlight: Node.Todo }
+
+getDoneFocus :: Int -> State -> Maybe Node.Focus
+getDoneFocus lineIndex state = do
+  nodeId <- Array.index state.reductionOrder lineIndex
+  pure { nodeId, highlight: Node.Done }
 
 handleMessage :: Node.Message -> Maybe Action
 handleMessage = case _ of
   Node.Applied id ->
     Just (Applied id)
-  Node.ApplyHoverOn nodeLoc ->
-    Just (ApplyHoverOn nodeLoc)
-  Node.ApplyHoverOff ->
-    Just ApplyHoverOff
+  Node.NodeHoverOn currentNode ->
+    Just $ CurrentNodeChanged (Just currentNode)
+  Node.NodeHoverOff ->
+    Just $ CurrentNodeChanged Nothing
 
 handleAction :: forall o. Action -> H.HalogenM State Action ChildSlots o Aff Unit
 handleAction action = case action of
@@ -123,18 +156,16 @@ handleAction action = case action of
     handleInitialize
   Applied id ->
     handleApplied id
-  ApplyHoverOn nodeLoc ->
-    handleApplyHoverOn nodeLoc
-  ApplyHoverOff ->
-    handleApplyHoverOff
+  CurrentNodeChanged currentNode ->
+    handleCurrentNode currentNode
 
-handleApplyHoverOn :: forall o. { lineIndex :: Int, nodeId :: String } -> H.HalogenM State Action ChildSlots o Aff Unit
-handleApplyHoverOn nodeLoc =
-  H.modify_ \s -> s { currentApplied = Just nodeLoc }
+handleCurrentNode :: forall o. Maybe CurrentNode -> H.HalogenM State Action ChildSlots o Aff Unit
+handleCurrentNode currentNode =
+  H.modify_ \s -> s { currentNode = currentNode }
 
 handleApplyHoverOff :: forall o. H.HalogenM State Action ChildSlots o Aff Unit
 handleApplyHoverOff =
-  H.modify_ \s -> s { currentApplied = Nothing }
+  H.modify_ \s -> s { currentNode = Nothing }
 
 handleApplied :: forall o. String -> H.HalogenM State Action ChildSlots o Aff Unit
 handleApplied nodeId = do
@@ -145,8 +176,8 @@ handleApplied nodeId = do
     reduceLastLine = H.gets $ _.lines >>> last >=> Core.betaReduction nodeId
     updateState { node, tree } = do
        H.modify_ \s -> s { lines = snoc s.lines tree
-                         , currentApplied = Just $ { lineIndex: (length s.lines) - 1, nodeId }
-                         , reducedNodes = snoc s.reducedNodes nodeId
+                         , currentNode = Just $ { lineIndex: (length s.lines) - 1, nodeId }
+                         , reductionOrder = snoc s.reductionOrder nodeId
                          , reductions = Map.insert nodeId node.id s.reductions
                          }
 
