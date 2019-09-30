@@ -149,13 +149,13 @@ getApplyParts :: Node -> Maybe { lambda :: Node, arg :: Node }
 getApplyParts { id: _, expr: (Apply lambda arg) } = Just $ { lambda, arg }
 getApplyParts _ = Nothing
 
-betaReduction :: String -> Node -> Maybe Node
+betaReduction :: String -> Node -> Maybe { node :: Node, tree :: Node }
 betaReduction nodeId tree = do
   node <- findNode nodeId tree
   { lambda, arg } <- getApplyParts node
   reduced <- hush $ applyLambda lambda arg
   newTree <- hush $ replaceNode nodeId reduced tree
-  pure newTree
+  pure $ { node: reduced, tree: newTree }
 
 isReduceable :: Node -> Boolean
 isReduceable { id: _, expr: Lambda _ _ } = true

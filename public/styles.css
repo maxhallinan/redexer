@@ -202,6 +202,14 @@ h6 {
 
 .line .clicked {
   text-decoration: line-through;
+  /* background: rgba(81,232,152,0.5); */
+}
+
+.line .highlighted,
+.line .clicked.highlighted {
+  background: rgba(81,232,152,0.5);
+  cursor: default;
+  text-decoration: none;
 }
 
 .line.last .apply.applicable {
@@ -209,9 +217,13 @@ h6 {
 }
 
 .line.last .apply.applicable:hover {
-  background: rgba(255, 255, 0, 0.3);
+  background: rgba(242,214,0,0.5);
 }
 
 .last.line .apply.applicable:hover .apply.applicable:hover {
-  background: rgba(255, 255, 0, 0.8);
+  background: rgba(242,214,0,0.75);
+}
+
+.line.hovering .clicked {
+  text-decoration: none;
 }
