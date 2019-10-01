@@ -183,6 +183,7 @@ h6 {
 }
 
 .edit {
+  cursor: pointer;
   font-family: "TiemposText";
   font-size: 0.83rem;
   line-height: 1;
@@ -194,9 +195,20 @@ h6 {
   padding: 1.6rem 1.5rem;
 }
 
+.editor,
 .line {
   font-family: "TriplicateT3Code";
   font-size: 1.125rem;
+}
+
+.editor {
+  background: none;
+  border: none;
+  border-radius: none;
+  box-shadow: none;
+  display: inline-block;
+  margin: 0;
+  padding: 0;
 }
 
 .prose .done,
@@ -216,6 +228,7 @@ h6 {
 .line.last .reduceable {
   text-decoration: underline;
   text-decoration-style: dotted;
+  text-decoration-skip-ink: none;
 }
 
 .prose .todo,
@@ -223,4 +236,8 @@ h6 {
   background: rgba(242,214,0,0.5);
   cursor: pointer;
   text-decoration: none;
+}
+
+.ast:focus {
+  outline: none;
 }

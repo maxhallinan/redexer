@@ -21,6 +21,8 @@ import Effect.Class (liftEffect)
 import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
+import Halogen.HTML.Properties as HP
+import Component.Util as Util
 import Web.Event.Event (stopPropagation)
 import Web.UIEvent.MouseEvent (MouseEvent, toEvent)
 
@@ -34,11 +36,17 @@ type Input =
 
 type State =
   { ast :: Core.Node
+  , editorState :: EditorState
   , lineIndex :: Int
   , linePos :: LinePos
   , focus :: Maybe Focus
   , reducedNodeId :: Maybe String
   }
+
+data EditorState
+  = Read
+  | Write { pendingContent :: String }
+derive instance eqEditorState :: Eq EditorState
 
 type Focus =
   { highlight :: Highlight
@@ -63,13 +71,14 @@ toLinePos { current, total } =
       then Last
       else Middle
 
-data Action 
-  = ApplyClicked String MouseEvent 
+data Action
+  = ApplyClicked String MouseEvent
+  | EditBtnClicked MouseEvent
+  | InputUpdated Input
   | NodeMouseEnter String MouseEvent
   | NodeMouseLeave String MouseEvent
-  | InputUpdated Input
 
-data Message 
+data Message
   = Applied String
   | NodeHoverOn { lineIndex :: Int, nodeId :: String }
   | NodeHoverOff
@@ -83,42 +92,90 @@ type ChildSlots = ()
 component :: H.Component HH.HTML Query Input Message Aff
 component =
   H.mkComponent
-  { initialState: identity -- Input -> State
+  { initialState: initState
   , render
   , eval: H.mkEval $ H.defaultEval { handleAction = handleAction
                                    , receive = Just <<< InputUpdated
                                    }
   }
 
+initState :: Input -> State
+initState i =
+  { ast: i.ast
+  , editorState: Read
+  , lineIndex: i.lineIndex
+  , linePos: i.linePos
+  , focus: i.focus
+  , reducedNodeId: i.reducedNodeId
+  }
+
 render :: State -> H.ComponentHTML Action ChildSlots Aff
 render state =
+  case state.linePos of
+    First ->
+      renderEditableLine state
+    Only ->
+      renderEditableLine state
+    Middle ->
+      renderReadOnlyLine state
+    Last ->
+      renderReadOnlyLine state
+
+renderReadOnlyLine :: State -> H.ComponentHTML Action ChildSlots Aff
+renderReadOnlyLine state =
   HH.div
     []
-    [ renderNode state
-    , renderEditBtn state
+    [ renderAst state
     ]
 
-renderEditBtn :: State -> H.ComponentHTML Action ChildSlots Aff
-renderEditBtn { linePos } =
-  case linePos of
-    First ->
-      editBtn
-    Last ->
-      placeholder
-    Middle ->
-      placeholder
-    Only ->
-      editBtn
-  where editBtn = HH.span [ U.className "edit" ] [ HH.text "edit" ]
-        placeholder = HH.text ""
+renderEditableLine :: State -> H.ComponentHTML Action ChildSlots Aff
+renderEditableLine state =
+  HH.div
+    []
+    [ renderAst state
+    , renderEditBtn
+    ]
+
+renderAst :: State -> H.ComponentHTML Action ChildSlots Aff
+renderAst state =
+  let
+      contenteditable =
+        if state.editorState == Read
+          then "false"
+          else "true"
+
+      astId = getAstId state
+  in
+  HH.span
+    [ HH.attr (HH.AttrName "contenteditable") contenteditable
+    , U.className "ast"
+    , HP.id_ astId
+    ]
+    [ renderNode state
+    ]
 
 renderNode :: State -> H.ComponentHTML Action ChildSlots Aff
 renderNode state =
+  case state.editorState of
+    Read ->
+      renderReadNode state
+    Write { pendingContent } ->
+      renderWriteNode pendingContent state
+
+renderWriteNode :: String -> State -> H.ComponentHTML Action ChildSlots Aff
+renderWriteNode pendingContent state =
+  HH.span
+    []
+    [ HH.text pendingContent
+    ]
+
+renderReadNode :: State -> H.ComponentHTML Action ChildSlots Aff
+renderReadNode state =
   let
-    handleMouseEnter event = 
+    handleMouseEnter event =
       Just $ NodeMouseEnter state.ast.id event
 
-    handleMouseLeave event = 
+    handleMouseLeave event =
       Just $ NodeMouseLeave state.ast.id event
 
     handleClick event =
@@ -131,7 +188,7 @@ renderNode state =
         then nodeClassNames state <> ["reduceable"]
         else nodeClassNames state
   in
-  HH.span 
+  HH.span
     [ U.classNames cn
     , HE.onClick handleClick
     , HE.onMouseOver handleMouseEnter
@@ -162,7 +219,7 @@ nodeClassNames { ast, focus } =
 
 highlightClassName :: Highlight -> String
 highlightClassName = case _ of
-  Done -> 
+  Done ->
     "done"
   Success ->
     "success"
@@ -194,10 +251,23 @@ renderApply { fn, arg } state@{ ast, focus, reducedNodeId } =
     , HH.text ")"
     ]
 
+renderEditBtn :: H.ComponentHTML Action ChildSlots Aff
+renderEditBtn =
+  HH.span
+    [ U.className "edit"
+    , HE.onClick (Just <<< EditBtnClicked)
+    ]
+    [ HH.text "edit" ]
+
 handleAction :: Action -> H.HalogenM State Action ChildSlots Message Aff Unit
 handleAction = case _ of
-  InputUpdated input ->
-    H.put input
+  InputUpdated i -> do
+    H.modify_ \s -> s{ ast = i.ast
+                     , lineIndex = i.lineIndex
+                     , linePos = i.linePos
+                     , focus = i.focus
+                     , reducedNodeId = i.reducedNodeId
+                     }
   ApplyClicked id event -> do
     stopProp event
     H.raise $ Applied id
@@ -207,5 +277,21 @@ handleAction = case _ of
     H.raise $ NodeHoverOn { lineIndex, nodeId }
   NodeMouseLeave nodeId event -> do
     stopProp event
-    H.raise $ NodeHoverOff
+    H.raise NodeHoverOff
+  EditBtnClicked event -> do
+    stopProp event
+    state <- H.get
+    setFocus $ getAstId state
+    H.put state{ editorState = Write { pendingContent: show state.ast.expr } }
   where stopProp = void <<< liftEffect <<< stopPropagation <<< toEvent
+        setFocus = liftEffect <<< Util.setFocus
+
+getAstId :: State -> String
+getAstId { ast, lineIndex } = show lineIndex <> ast.id
+
+toggleEditorState :: String -> EditorState -> EditorState
+toggleEditorState pendingContent = case _ of
+  Read ->
+    Write { pendingContent }
+  Write _ ->
+    Read

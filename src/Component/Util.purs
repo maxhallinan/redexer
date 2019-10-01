@@ -2,11 +2,14 @@ module Component.Util
   ( className
   , classNames
   , classNames_
+  , setFocus
   ) where
 
 import Prelude
 
 import Data.Array as Array
+import Effect (Effect)
+import Effect.Uncurried as EU
 import Halogen.HTML.Core (ClassName(..))
 import Halogen.HTML.Properties (IProp)
 import Halogen.HTML.Properties as HP
@@ -22,3 +25,8 @@ classNames_ =
   Array.filter _.cond
   >>> map (ClassName <<< _.name)
   >>> HP.classes
+
+setFocus :: String -> Effect Unit
+setFocus = EU.runEffectFn1 _setFocus
+
+foreign import _setFocus :: EU.EffectFn1 String Unit
