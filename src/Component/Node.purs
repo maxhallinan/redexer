@@ -15,7 +15,7 @@ import Prelude
 import Component.Util as U
 import Core as Core
 import Data.Array as Array
-import Data.Maybe (Maybe(..))
+import Data.Maybe (Maybe(..), isNothing)
 import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
 import Halogen as H
@@ -125,9 +125,14 @@ renderNode state =
       if Core.isReduceable state.ast
         then Just $ ApplyClicked state.ast.id event
         else Nothing
+
+    cn =
+      if Core.isReduceable state.ast && isNothing state.focus
+        then nodeClassNames state <> ["reduceable"]
+        else nodeClassNames state
   in
   HH.span 
-    [ U.classNames $ nodeClassNames state
+    [ U.classNames cn
     , HE.onClick handleClick
     , HE.onMouseOver handleMouseEnter
     , HE.onMouseOut handleMouseLeave

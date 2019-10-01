@@ -202,14 +202,22 @@ h6 {
 
 .line .done {
   text-decoration: line-through;
+  text-decoration-style: solid;
 }
 
 .line .success {
   background: rgba(81,232,152,0.5);
   cursor: default;
+  text-decoration: none;
+}
+
+.line.last .reduceable {
+  text-decoration: underline;
+  text-decoration-style: dotted;
 }
 
 .line.last .todo {
   background: rgba(242,214,0,0.5);
   cursor: pointer;
+  text-decoration: none;
 }

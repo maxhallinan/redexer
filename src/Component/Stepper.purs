@@ -12,7 +12,7 @@ import Data.Either (Either(..))
 import Data.Foldable (length)
 import Data.Map (Map)
 import Data.Map as Map
-import Data.Maybe (Maybe(..), maybe)
+import Data.Maybe (Maybe(..), isJust, maybe)
 import Data.Symbol (SProxy(..))
 import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
@@ -130,7 +130,7 @@ getTodoFocus lineIndex state = do
   line <- Array.index state.lines lineIndex
   node <- Core.findNode currentNode.nodeId line
   applyNode <- Core.closestReduceableAncestor node line
-  let isReduced = Nothing /= Array.index state.reductionOrder lineIndex
+  let isReduced = isJust $ Array.index state.reductionOrder lineIndex
   if lineIndex == currentNode.lineIndex && not isReduced
     then pure $ makeFocus applyNode.id
     else Nothing
