@@ -16,6 +16,7 @@ import Data.Maybe (Maybe(..), isJust, maybe)
 import Data.Symbol (SProxy(..))
 import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
+import Effect.Console (log)
 import Halogen as H
 import Halogen.HTML as HH
 import Parse as Parse
@@ -40,6 +41,7 @@ type CurrentNode =
 data Action
   = Initialize
   | Applied String
+  | ContentChanged { newContent :: String }
   | CurrentNodeChanged (Maybe CurrentNode)
 
 type ChildSlots = ( nodeSlot :: Node.Slot SlotIndex )
@@ -145,6 +147,8 @@ handleMessage :: Node.Message -> Maybe Action
 handleMessage = case _ of
   Node.Applied id ->
     Just (Applied id)
+  Node.ContentChanged { newContent } ->
+    Just (ContentChanged { newContent })
   Node.NodeHoverOn currentNode ->
     Just $ CurrentNodeChanged (Just currentNode)
   Node.NodeHoverOff ->
@@ -156,6 +160,8 @@ handleAction action = case action of
     handleInitialize
   Applied id ->
     handleApplied id
+  ContentChanged { newContent } ->
+    handleContentChanged newContent
   CurrentNodeChanged currentNode ->
     handleCurrentNode currentNode
 
@@ -185,9 +191,24 @@ handleInitialize :: forall o. H.HalogenM State Action ChildSlots o Aff Unit
 handleInitialize = do
   defaultContent <- H.gets _.defaultContent
   case Parse.parse defaultContent of
-    Left err -> do
+    Left err ->
       pure unit
     Right firstLine -> do
       l <- genIds firstLine
       H.modify_ \s -> s { lines = pure l }
+  where genIds = liftEffect <<< Core.genIds
+
+handleContentChanged :: forall o. String -> H.HalogenM State Action ChildSlots o Aff Unit
+handleContentChanged newContent = do
+  case Parse.parse newContent of
+    Left err ->
+      pure unit  
+    Right newAst -> do
+      H.liftEffect $ log (show newAst)
+      l <- genIds newAst
+      H.modify_ \state -> state{ currentNode = Nothing 
+                               , lines = pure l 
+                               , reductionOrder = mempty :: Array String
+                               , reductions = mempty :: Map String String
+                               }
   where genIds = liftEffect <<< Core.genIds

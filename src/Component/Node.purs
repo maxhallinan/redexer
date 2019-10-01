@@ -15,6 +15,7 @@ import Prelude
 import Component.Util as U
 import Core as Core
 import Data.Array as Array
+import Data.Foldable (traverse_)
 import Data.Maybe (Maybe(..), isNothing)
 import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
@@ -22,8 +23,10 @@ import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
+import Halogen.Query.EventSource as ES
 import Component.Util as Util
-import Web.Event.Event (stopPropagation)
+import Web.Event.Event (EventType(..), stopPropagation)
+import Web.HTML.HTMLElement as HTMLElement
 import Web.UIEvent.MouseEvent (MouseEvent, toEvent)
 
 type Input =
@@ -74,12 +77,15 @@ toLinePos { current, total } =
 data Action
   = ApplyClicked String MouseEvent
   | EditBtnClicked MouseEvent
+  | EditorBlurred
+  | Init
   | InputUpdated Input
   | NodeMouseEnter String MouseEvent
   | NodeMouseLeave String MouseEvent
 
 data Message
   = Applied String
+  | ContentChanged { newContent :: String }
   | NodeHoverOn { lineIndex :: Int, nodeId :: String }
   | NodeHoverOff
 
@@ -95,6 +101,7 @@ component =
   { initialState: initState
   , render
   , eval: H.mkEval $ H.defaultEval { handleAction = handleAction
+                                   , initialize = Just Init
                                    , receive = Just <<< InputUpdated
                                    }
   }
@@ -150,9 +157,13 @@ renderAst state =
     [ HH.attr (HH.AttrName "contenteditable") contenteditable
     , U.className "ast"
     , HP.id_ astId
+    , HP.ref editorRef
     ]
     [ renderNode state
     ]
+
+editorRef :: H.RefLabel
+editorRef = H.RefLabel "editor"
 
 renderNode :: State -> H.ComponentHTML Action ChildSlots Aff
 renderNode state =
@@ -261,30 +272,81 @@ renderEditBtn =
 
 handleAction :: Action -> H.HalogenM State Action ChildSlots Message Aff Unit
 handleAction = case _ of
-  InputUpdated i -> do
-    H.modify_ \s -> s{ ast = i.ast
-                     , lineIndex = i.lineIndex
-                     , linePos = i.linePos
-                     , focus = i.focus
-                     , reducedNodeId = i.reducedNodeId
-                     }
-  ApplyClicked id event -> do
-    stopProp event
-    H.raise $ Applied id
+  Init ->
+    pure unit
+  InputUpdated input -> do
+    handleInputUpdated input
+  ApplyClicked nodeId event -> do
+    handleApplyClicked nodeId event
   NodeMouseEnter nodeId event -> do
-    stopProp event
-    { lineIndex } <- H.get
-    H.raise $ NodeHoverOn { lineIndex, nodeId }
-  NodeMouseLeave nodeId event -> do
-    stopProp event
-    H.raise NodeHoverOff
-  EditBtnClicked event -> do
-    stopProp event
-    state <- H.get
-    setFocus $ getAstId state
-    H.put state{ editorState = Write { pendingContent: show state.ast.expr } }
-  where stopProp = void <<< liftEffect <<< stopPropagation <<< toEvent
-        setFocus = liftEffect <<< Util.setFocus
+    handleNodeMouseEnter nodeId event
+  NodeMouseLeave nodeId event ->
+    handleNodeMouseLeave nodeId event
+  EditBtnClicked event ->
+     handleEditBtnClicked event
+  EditorBlurred ->
+     handleEditorBlurred
+
+handleInputUpdated :: Input -> H.HalogenM State Action ChildSlots Message Aff Unit
+handleInputUpdated i =
+  H.modify_ \s -> s{ ast = i.ast
+                    , lineIndex = i.lineIndex
+                    , linePos = i.linePos
+                    , focus = i.focus
+                    , reducedNodeId = i.reducedNodeId
+                    }
+
+handleApplyClicked :: String -> MouseEvent -> H.HalogenM State Action ChildSlots Message Aff Unit
+handleApplyClicked nodeId event = do
+  stopProp event
+  H.raise $ Applied nodeId
+
+handleNodeMouseEnter :: String -> MouseEvent -> H.HalogenM State Action ChildSlots Message Aff Unit
+handleNodeMouseEnter nodeId event = do
+  stopProp event
+  { lineIndex } <- H.get
+  H.raise $ NodeHoverOn { lineIndex, nodeId }
+
+handleNodeMouseLeave :: String -> MouseEvent -> H.HalogenM State Action ChildSlots Message Aff Unit
+handleNodeMouseLeave nodeId event = do
+  stopProp event
+  H.raise NodeHoverOff
+
+handleEditBtnClicked :: MouseEvent -> H.HalogenM State Action ChildSlots Message Aff Unit
+handleEditBtnClicked event = do
+  stopProp event
+  state <- H.get
+  setFocus $ getAstId state
+  H.put state{ editorState = Write { pendingContent: show state.ast.expr } }
+  H.getHTMLElementRef editorRef >>= traverse_ \el -> do
+    H.subscribe $ ES.eventListenerEventSource (EventType "blur")
+                                              (HTMLElement.toEventTarget el)
+                                              (const $ Just EditorBlurred)
+
+handleEditorBlurred :: H.HalogenM State Action ChildSlots Message Aff Unit
+handleEditorBlurred = do
+  old <- H.gets showAst
+  pendingContent >>= traverse_ \new -> do
+    if (new /= "") && (new /= old)
+      then H.raise $ ContentChanged { newContent: new }
+      else pure unit
+  H.modify_ \state -> state{ editorState = Read }
+  where pendingContent = H.gets getPendingContent
+        showAst = show <<< _.expr <<< _.ast
+
+stopProp :: MouseEvent -> H.HalogenM State Action ChildSlots Message Aff Unit
+stopProp = void <<< liftEffect <<< stopPropagation <<< toEvent
+
+setFocus :: String -> H.HalogenM State Action ChildSlots Message Aff Unit
+setFocus = H.liftEffect <<< Util.setFocus
+
+getPendingContent :: State -> Maybe String
+getPendingContent state =
+  case state.editorState of
+    Read ->
+      Nothing
+    Write { pendingContent } ->
+      Just pendingContent
 
 getAstId :: State -> String
 getAstId { ast, lineIndex } = show lineIndex <> ast.id
