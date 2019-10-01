@@ -59,7 +59,6 @@ h6 {
 
 .prose {
   font-family: "TiemposText", serif;
-  hyphens: auto;
 }
 
 .prose h1,
@@ -200,22 +199,26 @@ h6 {
   font-size: 1.125rem;
 }
 
+.prose .done,
 .line .done {
   text-decoration: line-through;
   text-decoration-style: solid;
 }
 
+.prose .success,
 .line .success {
   background: rgba(81,232,152,0.5);
   cursor: default;
   text-decoration: none;
 }
 
+.prose .reduceable,
 .line.last .reduceable {
   text-decoration: underline;
   text-decoration-style: dotted;
 }
 
+.prose .todo,
 .line.last .todo {
   background: rgba(242,214,0,0.5);
   cursor: pointer;
