@@ -16,7 +16,6 @@ import Data.Maybe (Maybe(..), isJust, maybe)
 import Data.Symbol (SProxy(..))
 import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
-import Effect.Console (log)
 import Halogen as H
 import Halogen.HTML as HH
 import Parse as Parse
@@ -202,12 +201,11 @@ handleContentChanged :: forall o. String -> H.HalogenM State Action ChildSlots o
 handleContentChanged newContent = do
   case Parse.parse newContent of
     Left err ->
-      pure unit  
+      pure unit
     Right newAst -> do
-      H.liftEffect $ log (show newAst)
       l <- genIds newAst
-      H.modify_ \state -> state{ currentNode = Nothing 
-                               , lines = pure l 
+      H.modify_ \state -> state{ currentNode = Nothing
+                               , lines = pure l
                                , reductionOrder = mempty :: Array String
                                , reductions = mempty :: Map String String
                                }

@@ -183,7 +183,12 @@ h6 {
 }
 
 .edit {
+  background: none;
+  border: none;
+  border-radius: none;
+  box-shadow: none;
   cursor: pointer;
+  display: inline-block;
   font-family: "TiemposText";
   font-size: 0.83rem;
   line-height: 1;
@@ -236,6 +241,10 @@ h6 {
   background: rgba(242,214,0,0.5);
   cursor: pointer;
   text-decoration: none;
+}
+
+.ast {
+  display: inline-block;
 }
 
 .ast:focus {

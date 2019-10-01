@@ -25,9 +25,13 @@ import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
 import Halogen.Query.EventSource as ES
 import Component.Util as Util
-import Web.Event.Event (EventType(..), stopPropagation)
+import Web.DOM.Node (textContent)
+import Web.DOM.Node as Node
+import Web.Event.Event (Event, EventType(..), stopPropagation)
+import Web.Event.Event as Event
 import Web.HTML.HTMLElement as HTMLElement
 import Web.UIEvent.MouseEvent (MouseEvent, toEvent)
+import Web.UIEvent.KeyboardEvent as KeyboardEvent
 
 type Input =
   { ast :: Core.Node
@@ -77,11 +81,23 @@ toLinePos { current, total } =
 data Action
   = ApplyClicked String MouseEvent
   | EditBtnClicked MouseEvent
+  | EditorContentChanged Event
   | EditorBlurred
+  | EditorKeyDown (Maybe EditorKey)
   | Init
   | InputUpdated Input
   | NodeMouseEnter String MouseEvent
   | NodeMouseLeave String MouseEvent
+
+data EditorKey
+  = EnterKey
+
+toEditorKey :: String -> Maybe EditorKey
+toEditorKey = case _ of
+  "Enter" ->
+    Just EnterKey
+  _ ->
+    Nothing
 
 data Message
   = Applied String
@@ -151,12 +167,13 @@ renderAst state =
           then "false"
           else "true"
 
-      astId = getAstId state
+      handleKeyDown = Just <<< EditorKeyDown <<< toEditorKey <<< KeyboardEvent.key
   in
-  HH.span
+  HH.div
     [ HH.attr (HH.AttrName "contenteditable") contenteditable
     , U.className "ast"
-    , HP.id_ astId
+    , HE.onKeyDown handleKeyDown
+    , HP.id_ $ getAstId state
     , HP.ref editorRef
     ]
     [ renderNode state
@@ -170,8 +187,8 @@ renderNode state =
   case state.editorState of
     Read ->
       renderReadNode state
-    Write { pendingContent } ->
-      renderWriteNode pendingContent state
+    Write _ ->
+      renderWriteNode (show state.ast.expr) state
 
 renderWriteNode :: String -> State -> H.ComponentHTML Action ChildSlots Aff
 renderWriteNode pendingContent state =
@@ -264,7 +281,7 @@ renderApply { fn, arg } state@{ ast, focus, reducedNodeId } =
 
 renderEditBtn :: H.ComponentHTML Action ChildSlots Aff
 renderEditBtn =
-  HH.span
+  HH.button
     [ U.className "edit"
     , HE.onClick (Just <<< EditBtnClicked)
     ]
@@ -283,9 +300,39 @@ handleAction = case _ of
   NodeMouseLeave nodeId event ->
     handleNodeMouseLeave nodeId event
   EditBtnClicked event ->
-     handleEditBtnClicked event
+    handleEditBtnClicked event
   EditorBlurred ->
-     handleEditorBlurred
+    handleEditorBlurred
+  EditorContentChanged event ->
+    handleEditorContentChanged event
+  EditorKeyDown key ->
+    handleEditorKeyDown key
+
+handleEditorKeyDown :: Maybe EditorKey -> H.HalogenM State Action ChildSlots Message Aff Unit
+handleEditorKeyDown editorKey =
+  case editorKey of
+    Just EnterKey ->
+      handleEditorBlurred
+    Nothing ->
+      pure unit
+
+handleEditorContentChanged :: Event -> H.HalogenM State Action ChildSlots Message Aff Unit
+handleEditorContentChanged event = do
+  let target = Event.target event >>= Node.fromEventTarget
+  case target of
+    Just t -> do
+      pendingContent <- H.liftEffect $ textContent t
+      H.modify_ \state -> state{ editorState = updatePendingContent pendingContent state.editorState }
+    Nothing -> do
+      pure unit
+
+updatePendingContent :: String -> EditorState -> EditorState
+updatePendingContent pendingContent editorState =
+  case editorState of
+    Read ->
+      Read
+    Write _ ->
+      Write { pendingContent }
 
 handleInputUpdated :: Input -> H.HalogenM State Action ChildSlots Message Aff Unit
 handleInputUpdated i =
@@ -315,13 +362,14 @@ handleNodeMouseLeave nodeId event = do
 handleEditBtnClicked :: MouseEvent -> H.HalogenM State Action ChildSlots Message Aff Unit
 handleEditBtnClicked event = do
   stopProp event
-  state <- H.get
-  setFocus $ getAstId state
-  H.put state{ editorState = Write { pendingContent: show state.ast.expr } }
+  astId <- H.gets getAstId
+  setFocus astId
+  H.modify_ \state -> state{ editorState = Write { pendingContent: "" } }
   H.getHTMLElementRef editorRef >>= traverse_ \el -> do
-    H.subscribe $ ES.eventListenerEventSource (EventType "blur")
-                                              (HTMLElement.toEventTarget el)
-                                              (const $ Just EditorBlurred)
+    let eventTarget = HTMLElement.toEventTarget el
+    let onEvent eventName handler = void $ H.subscribe $ ES.eventListenerEventSource (EventType eventName) eventTarget handler
+    onEvent "blur" (const $ Just EditorBlurred)
+    onEvent "input" (Just <<< EditorContentChanged)
 
 handleEditorBlurred :: H.HalogenM State Action ChildSlots Message Aff Unit
 handleEditorBlurred = do
