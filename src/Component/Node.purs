@@ -11,6 +11,7 @@ module Component.Node
   ) where
 
 import Prelude
+import Debug.Trace (spy)
 
 import Component.Util as Util
 import Core as Core
@@ -186,24 +187,25 @@ renderWriteNode editor state =
     , HP.id_ $ getAstId state
     , HP.ref editorRef
     ]
-    [ HH.text "" ]
+    [ HH.text ""
+    ]
   where astText = show state.ast.expr
         errPos = map Parse.errPos editor.parseErr
 
-highlightErrPos :: String -> { column :: Int, line :: Int } -> H.ComponentHTML Action ChildSlots Aff
+highlightErrPos :: String -> { column :: Int, line :: Int } -> { before :: String, highlight :: String, after :: String }
 highlightErrPos astText { column } =
   let
       before = String.take (column - 1) astText
-      c = String.codePointAt column astText
-          # maybe "" CodePoints.singleton
-      after = String.drop (column + 1) astText
-  in
-  HH.span
-    []
-    [ HH.text before
-    , HH.span [ Util.className "error-location" ] [ HH.text c ]
-    , HH.text after
-    ]
+
+      highlight = 
+        String.codePointAt (column - 1) astText
+        # maybe "" CodePoints.singleton
+
+      after = String.drop column astText
+
+      _ = spy "" { column, before, highlight, after }
+  in 
+  { before, highlight, after }
 
 editorRef :: H.RefLabel
 editorRef = H.RefLabel "editor"
@@ -345,10 +347,8 @@ handleEditorKeyDown editorKey event = do
         if (new /= "") && (new /= old)
           then case Parse.parse new of
             Left err -> do
-              selectionRange <- H.liftEffect $ Util.getSelectionRange 0
-              let selectionOffset = Util.getSelectionRangeOffset selectionRange
               H.modify_ \state -> state{ editorState = Write { parseErr: Just err, pendingContent: new } }
-              H.liftEffect $ Util.setSelectionRange (getAstId s) selectionOffset selectionRange
+              H.liftEffect $ Util.setSelectionRange (getAstId s) (highlightErrPos new (Parse.errPos err))
             Right ast -> do
               H.raise $ NewAst { ast }
               H.modify_ \state -> state{ editorState = Read }
@@ -366,6 +366,9 @@ handleEditorContentChanged event = do
     Just t -> do
       pendingContent <- H.liftEffect $ textContent t
       H.modify_ \state -> state{ editorState = updatePendingContent pendingContent state.editorState }
+      if pendingContent == ""
+      then H.liftEffect $ Util.setLineBreak t
+      else pure unit
     Nothing -> do
       pure unit
 
@@ -405,16 +408,24 @@ handleNodeMouseLeave nodeId event = do
 handleEditBtnClicked :: MouseEvent -> H.HalogenM State Action ChildSlots Message Aff Unit
 handleEditBtnClicked event = do
   stopProp event
-  s <- H.get
-  astId <- H.gets getAstId
-  setFocus astId
-  H.modify_ \state -> state{ editorState = Write { parseErr: Nothing, pendingContent: "" } }
-  H.getHTMLElementRef editorRef >>= traverse_ \el -> do
-    H.liftEffect $ setTextContent (show s.ast.expr) (HTMLElement.toNode el)
-    let eventTarget = HTMLElement.toEventTarget el
-    let onEvent eventName handler = void $ H.subscribe $ ES.eventListenerEventSource (EventType eventName) eventTarget handler
-    onEvent "blur" (const $ Just EditorBlurred)
-    onEvent "input" (Just <<< EditorContentChanged)
+  setEditorFocus
+  setEditorWriteState  
+  getEditorElement >>= traverse_ \element -> do
+    setEditorTextContent element
+    bindEditorEvents element
+  where setEditorFocus = H.gets getAstId >>= setFocus
+        setEditorWriteState = H.modify_ \state -> state{ editorState = Write { parseErr: Nothing, pendingContent: "" } }
+        setEditorTextContent element = do
+          ast <- H.gets _.ast
+          H.liftEffect $ setTextContent (show ast.expr) (HTMLElement.toNode element)
+        getEditorElement = H.getHTMLElementRef editorRef
+        bindEditorEvents element = do
+          let eventTarget = HTMLElement.toEventTarget element
+          onEvent "blur" handleBlur eventTarget
+          onEvent "input" handleInput eventTarget
+        onEvent name handler target = void $ H.subscribe $ ES.eventListenerEventSource (EventType name) target handler
+        handleBlur _ = Just EditorBlurred
+        handleInput = Just <<< EditorContentChanged
 
 handleEditorBlurred :: H.HalogenM State Action ChildSlots Message Aff Unit
 handleEditorBlurred = do
@@ -427,7 +438,7 @@ handleEditorBlurred = do
         Right ast -> do
           H.raise $ NewAst { ast }
           H.modify_ \state -> state{ editorState = Read }
-      else pure unit
+      else H.modify_ \state -> state{ editorState = Read }
   where pendingContent = H.gets getPendingContent
         showAst = show <<< _.expr <<< _.ast
 

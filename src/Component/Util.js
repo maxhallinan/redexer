@@ -1,3 +1,4 @@
+"use string";
 exports._setFocus = function (elementId) {
   const el = document.getElementById(elementId);
   if (el) {
@@ -22,13 +23,37 @@ exports._getSelectionRangeOffset = function (range) {
   };
 };
 
-exports._setSelectionRange = function (elementId, offset, range) {
-  window.setTimeout(function () {
-    var selection = window.getSelection();
-    const el = document.getElementById(elementId);
-    if (el) {
-      range.setStart(el, offset.start);
-      range.setEnd(el, offset.end);
-    }
-  }, 10);
+exports._setSelectionRange = function (elementId, parts) {
+  console.log(parts);
+  var element = document.getElementById(elementId);
+  element.innerHTML = parts.before + "<span class=\"error-location\">" + parts.highlight + "</span>" + parts.after
+  var selection = window.getSelection();
+  selection.setPosition(element.childNodes[0], parts.before.length);
+};
+
+exports._setLineBreak = function (node) {
+  node.innerHTML = "<br />";
+}
+
+exports._deleteEditorContent = function (node) {
+  node.innerHTML = "<br />";
+};
+
+exports._highlightErrPos = function (parts, node) {
+  var innerHTML = parts.before + "<span class=\"error-position\">" + parts.highlight + "</span>" + parts.after;
+  node.innerHTML = innerHTML;
+  var selection = window.getSelection();
+  selection.setPosition(node.childNodes[0], parts.before.length);
+};
+
+exports._setEditorTextContent = function (textContent, node) {
+  var selection = window.getSelection();
+  var anchorOffset = selection.anchorOffset;
+  var anchorNode = selection.anchorNode;
+  node.textContent = textContent;
+  try {
+    selection.setPosition(anchorNode, anchorOffset);
+  } catch (error) {
+    selection.setPosition(node.childNodes[0], 0);
+  }
 };
