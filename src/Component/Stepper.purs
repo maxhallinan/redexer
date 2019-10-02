@@ -28,6 +28,7 @@ type State =
   { currentNode :: Maybe CurrentNode
   , defaultContent :: String
   , lines :: Array Core.Node
+  , parseErr :: Maybe Parse.ParseErr
   , reductionOrder :: Array String
   , reductions :: Map String String
   }
@@ -40,7 +41,7 @@ type CurrentNode =
 data Action
   = Initialize
   | Applied String
-  | ContentChanged { newContent :: String }
+  | NewAst { ast :: Core.Node }
   | CurrentNodeChanged (Maybe CurrentNode)
 
 type ChildSlots = ( nodeSlot :: Node.Slot SlotIndex )
@@ -65,6 +66,7 @@ initState { defaultContent } =
   { currentNode: Nothing
   , defaultContent
   , lines: mempty
+  , parseErr: Nothing
   , reductionOrder: mempty
   , reductions: mempty
   }
@@ -146,8 +148,8 @@ handleMessage :: Node.Message -> Maybe Action
 handleMessage = case _ of
   Node.Applied id ->
     Just (Applied id)
-  Node.ContentChanged { newContent } ->
-    Just (ContentChanged { newContent })
+  Node.NewAst { ast } ->
+    Just (NewAst { ast })
   Node.NodeHoverOn currentNode ->
     Just $ CurrentNodeChanged (Just currentNode)
   Node.NodeHoverOff ->
@@ -159,8 +161,8 @@ handleAction action = case action of
     handleInitialize
   Applied id ->
     handleApplied id
-  ContentChanged { newContent } ->
-    handleContentChanged newContent
+  NewAst { ast } ->
+    handleNewAst ast
   CurrentNodeChanged currentNode ->
     handleCurrentNode currentNode
 
@@ -197,16 +199,13 @@ handleInitialize = do
       H.modify_ \s -> s { lines = pure l }
   where genIds = liftEffect <<< Core.genIds
 
-handleContentChanged :: forall o. String -> H.HalogenM State Action ChildSlots o Aff Unit
-handleContentChanged newContent = do
-  case Parse.parse newContent of
-    Left err ->
-      pure unit
-    Right newAst -> do
-      l <- genIds newAst
-      H.modify_ \state -> state{ currentNode = Nothing
-                               , lines = pure l
-                               , reductionOrder = mempty :: Array String
-                               , reductions = mempty :: Map String String
-                               }
+handleNewAst :: forall o. Core.Node -> H.HalogenM State Action ChildSlots o Aff Unit
+handleNewAst ast = do
+  l <- genIds ast
+  H.modify_ \state -> state{ currentNode = Nothing
+                           , lines = pure l
+                           , parseErr = Nothing
+                           , reductionOrder = mempty :: Array String
+                           , reductions = mempty :: Map String String
+                           }
   where genIds = liftEffect <<< Core.genIds

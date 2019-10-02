@@ -1,4 +1,4 @@
-module Parse (ParseErr, expr, lambda, parse) where
+module Parse (ParseErr, errMsg, errPos, expr, lambda, parse) where
 
 import Prelude
 
@@ -10,6 +10,7 @@ import Data.Either (Either)
 import Text.Parsing.Parser as P
 import Text.Parsing.Parser.Combinators as C
 import Text.Parsing.Parser.Language as L
+import Text.Parsing.Parser.Pos as PP
 import Text.Parsing.Parser.String as S
 import Text.Parsing.Parser.Token as T
 
@@ -17,8 +18,14 @@ type Parser a = P.Parser String a
 
 type ParseErr = P.ParseError
 
-parse :: String -> Either P.ParseError Node
+parse :: String -> Either ParseErr Node
 parse s = P.runParser s (C.between lexer.whiteSpace S.eof expr)
+
+errMsg :: ParseErr -> String
+errMsg = P.parseErrorMessage
+
+errPos :: ParseErr -> { column :: Int, line :: Int }
+errPos = P.parseErrorPosition >>> \(PP.Position pos) -> pos
 
 lexer :: T.TokenParser
 lexer = T.makeTokenParser langDef

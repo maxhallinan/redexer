@@ -8,3 +8,27 @@ exports._setFocus = function (elementId) {
     }, 0);
   }
 };
+
+exports._getSelectionRange = function (index) {
+  var selection = window.getSelection();
+  var range = selection.getRangeAt(index);
+  return range;
+};
+
+exports._getSelectionRangeOffset = function (range) {
+  return {
+    end: range.endOffset,
+    start: range.startOffset,
+  };
+};
+
+exports._setSelectionRange = function (elementId, offset, range) {
+  window.setTimeout(function () {
+    var selection = window.getSelection();
+    const el = document.getElementById(elementId);
+    if (el) {
+      range.setStart(el, offset.start);
+      range.setEnd(el, offset.end);
+    }
+  }, 10);
+};

@@ -130,7 +130,7 @@ h6 {
 }
 
 .prose code {
-  font-family: "Pitch", "FiraMonoRegular", monospace;
+  font-family: "TriplicateT3Code", monospace;
   font-weight: 400;
 }
 
@@ -249,4 +249,18 @@ h6 {
 
 .ast:focus {
   outline: none;
+}
+
+.line .error {
+  color: #eb5a46;
+}
+
+.line .error-location {
+  background: #eb5a46;
+}
+
+.line .error-msg {
+  font-size: 1rem;
+  position: relative;
+  top: -4px;
 }
