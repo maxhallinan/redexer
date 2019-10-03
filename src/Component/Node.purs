@@ -11,7 +11,6 @@ module Component.Node
   ) where
 
 import Prelude
-import Debug.Trace (spy)
 
 import Component.Util as Util
 import Core as Core
@@ -22,8 +21,10 @@ import Data.Maybe (Maybe(..), isNothing, maybe)
 import Data.String as String
 import Data.String.CodePoints as CodePoints
 import Data.String.CodeUnits (fromCharArray)
+import Effect (Effect)
 import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
+import Effect.Uncurried as EU
 import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
@@ -31,7 +32,7 @@ import Halogen.HTML.Properties as HP
 import Halogen.Query.EventSource as ES
 import Parse as Parse
 import Web.DOM.Node as Node
-import Web.Event.Event (Event, EventType(..), preventDefault, stopPropagation)
+import Web.Event.Event (Event, EventType(..), stopPropagation)
 import Web.Event.Event as Event
 import Web.HTML.HTMLElement as HTMLElement
 import Web.UIEvent.MouseEvent (MouseEvent, toEvent)
@@ -56,10 +57,10 @@ type State =
 
 data EditorState
   = Read
-  | Write { pendingContent :: String
-          , parseErr :: Maybe Parse.ParseErr
-          }
+  | Write WriteState
 derive instance eqEditorState :: Eq EditorState
+
+type WriteState = { pendingContent :: String , parseErr :: Maybe Parse.ParseErr }
 
 type Focus =
   { highlight :: Highlight
@@ -90,7 +91,6 @@ data Action
   | EditorContentChanged Event
   | EditorBlurred
   | EditorKeyDown (Maybe EditorKey) KeyboardEvent.KeyboardEvent
-  | Init
   | InputUpdated Input
   | NodeMouseEnter String MouseEvent
   | NodeMouseLeave String MouseEvent
@@ -123,7 +123,6 @@ component =
   { initialState: initState
   , render
   , eval: H.mkEval $ H.defaultEval { handleAction = handleAction
-                                   , initialize = Just Init
                                    , receive = Just <<< InputUpdated
                                    }
   }
@@ -166,63 +165,63 @@ renderEditableLine state =
         [ renderReadNode state
         , renderEditBtn
         ]
-    Write editor ->
+    Write writeState ->
+      let
+        errMsg = maybe (HH.text "") renderErrMsg writeState.parseErr
+      in
       HH.div
         []
-        [ renderWriteNode editor state
-        , maybe (HH.text "") renderErrMsg editor.parseErr
+        [ renderWriteNode writeState state
+        , errMsg
         ]
 
-renderWriteNode :: { parseErr :: Maybe Parse.ParseErr, pendingContent :: String }-> State -> H.ComponentHTML Action ChildSlots Aff
-renderWriteNode editor state =
-  let
-      handleKeyDown event =
-        Just $ EditorKeyDown (toEditorKey $ KeyboardEvent.key event) event
-  in
+renderWriteNode :: WriteState -> State -> H.ComponentHTML Action ChildSlots Aff
+renderWriteNode { parseErr } state =
   HH.div
     [ HH.attr (HH.AttrName "contenteditable") "true"
     , Util.className "ast"
     , HE.onKeyDown handleKeyDown
-    , HP.id_ $ getAstId state
+    , HP.id_ $ toEditorId state
     , HP.ref editorRef
     ]
     [ HH.text ""
     ]
   where astText = show state.ast.expr
-        errPos = map Parse.errPos editor.parseErr
-
-highlightErrPos :: String -> { column :: Int, line :: Int } -> { before :: String, highlight :: String, after :: String }
-highlightErrPos astText { column } =
-  let
-      before = String.take (column - 1) astText
-
-      highlight = 
-        String.codePointAt (column - 1) astText
-        # maybe "" CodePoints.singleton
-
-      after = String.drop column astText
-
-      _ = spy "" { column, before, highlight, after }
-  in 
-  { before, highlight, after }
+        errPos = map Parse.errPos parseErr
+        handleKeyDown event =
+          let
+            editorKey = toEditorKey $ KeyboardEvent.key event
+          in
+          Just $ EditorKeyDown editorKey event
 
 editorRef :: H.RefLabel
 editorRef = H.RefLabel "editor"
 
+highlightErrPos :: String -> { column :: Int, line :: Int } -> { before :: String, markText :: String, after :: String }
+highlightErrPos astText { column } =
+  let
+      before = String.take (column - 1) astText
+
+      markText =
+        String.codePointAt (column - 1) astText
+        # maybe "" CodePoints.singleton
+
+      after = String.drop column astText
+  in
+  { before, markText, after }
+
 renderErrMsg :: Parse.ParseErr -> H.ComponentHTML Action ChildSlots Aff
 renderErrMsg err =
-  let
-      col = _.column $ Parse.errPos err
-
-      pointer = Array.replicate (col - 1) '-'
-                # flip Array.snoc '^'
-                # fromCharArray
-  in
   HH.div
     [ Util.className "error" ]
     [ HH.div [Util.className "error-pointer"] [ HH.text pointer ]
-    , HH.div [Util.className "error-msg"] [ HH.text $ Parse.errMsg err ]
+    , HH.div [Util.className "error-msg"] [ HH.text errMsg ]
     ]
+  where errMsg = Parse.errMsg err
+        col = _.column $ Parse.errPos err
+        pointer = Array.replicate (col - 1) '-'
+                  # flip Array.snoc '^'
+                  # fromCharArray
 
 renderEditBtn :: H.ComponentHTML Action ChildSlots Aff
 renderEditBtn =
@@ -316,8 +315,6 @@ renderApply { fn, arg } state@{ ast, focus, reducedNodeId } =
 
 handleAction :: Action -> H.HalogenM State Action ChildSlots Message Aff Unit
 handleAction = case _ of
-  Init ->
-    pure unit
   InputUpdated input -> do
     handleInputUpdated input
   ApplyClicked nodeId event -> do
@@ -336,45 +333,59 @@ handleAction = case _ of
     handleEditorKeyDown key event
 
 handleEditorKeyDown :: Maybe EditorKey -> KeyboardEvent.KeyboardEvent -> H.HalogenM State Action ChildSlots Message Aff Unit
-handleEditorKeyDown editorKey event = do
-  case editorKey of
-    Just EnterKey -> do
-      H.liftEffect $ preventDefault (KeyboardEvent.toEvent event)
-      s <- H.get
-      old <- H.gets showAst
-      pendingContent >>= traverse_ \new -> do
-        if (new /= "") && (new /= old)
-          then case Parse.parse new of
-            Left err -> do
-              H.modify_ \state -> state{ editorState = Write { parseErr: Just err, pendingContent: new } }
-              H.liftEffect $ Util.setSelectionRange (getAstId s) (highlightErrPos new (Parse.errPos err))
-            Right ast -> do
-              H.raise $ NewAst { ast }
-              H.modify_ \state -> state{ editorState = Read }
-          else
-            H.modify_ \state -> state{ editorState = Read }
-    Nothing ->
-      pure unit
-  where pendingContent = H.gets getPendingContent
+handleEditorKeyDown editorKey event = editorKey # traverse_ \EnterKey -> do
+  preventDefault event
+  attemptCreateNewAst
+  where preventDefault = H.liftEffect <<< Event.preventDefault <<< KeyboardEvent.toEvent
+
+attemptCreateNewAst :: H.HalogenM State Action ChildSlots Message Aff Unit
+attemptCreateNewAst = getPendingContent >>= traverse_ \new -> do
+  isValid <- isValidContent new
+  if isValid
+    then attemptParseContent new
+    else setEditorReadState
+  where getPendingContent = H.gets toPendingContent
+        getCurrentContent = H.gets showAst
         showAst = show <<< _.expr <<< _.ast
+        setEditorReadState = H.modify_ \state -> state{ editorState = Read }
+        getEditorElement = H.getHTMLElementRef editorRef
+        isValidContent new = do
+          old <- getCurrentContent
+          pure $ (new /= "") && (new /= old)
+        raiseNewAst ast = H.raise $ NewAst { ast }
+        setEditorErrState pendingContent err = 
+          H.modify_ \state -> state{ editorState = Write { parseErr: Just err, pendingContent } }
+        markErrPosInEditor pendingContent err = getEditorElement >>= traverse_ \element ->
+          let
+            parts = highlightErrPos pendingContent (Parse.errPos err)
+            node = HTMLElement.toNode element
+          in
+          H.liftEffect $ markEditorErrPos parts node
+        attemptParseContent new = case Parse.parse new of
+          Left err -> do
+            setEditorErrState new err
+            markErrPosInEditor new err
+          Right ast -> do
+            raiseNewAst ast
+            setEditorReadState
 
 handleEditorContentChanged :: Event -> H.HalogenM State Action ChildSlots Message Aff Unit
 handleEditorContentChanged event = do
   getEditorNode # traverse_ \node -> do
     pendingContent <- getPendingContent node
-    deleteEditorContentIfEmpty pendingContent node
     removeHighlightIfErr pendingContent node
+    deleteEditorContentIfEmpty pendingContent node
     updateEditorState pendingContent
   where getEditorNode = Event.target event >>= Node.fromEventTarget
         getPendingContent = H.liftEffect <<< Node.textContent
         updateEditorState content = H.modify_ \state -> state{ editorState = updatePendingContent content state.editorState }
         deleteEditorContentIfEmpty content node =
           if content == ""
-            then H.liftEffect $ Util.deleteEditorContent node
+            then H.liftEffect $ deleteEditorContent node
             else pure unit
-        removeHighlightIfErr content node = 
+        removeHighlightIfErr content node =
           H.gets (getParseErr <<< _.editorState) >>= traverse_ \_ ->
-            H.liftEffect $ Util.setEditorTextContent content node
+            H.liftEffect $ setEditorTextContent content node
 
 getParseErr :: EditorState -> Maybe Parse.ParseErr
 getParseErr = case _ of
@@ -419,15 +430,15 @@ handleNodeMouseLeave nodeId event = do
 handleEditBtnClicked :: MouseEvent -> H.HalogenM State Action ChildSlots Message Aff Unit
 handleEditBtnClicked event = do
   stopProp event
-  setEditorFocus
-  setEditorWriteState  
+  setEditorWriteState
   getEditorElement >>= traverse_ \element -> do
-    setEditorTextContent element
+    setEditorContent element
     bindEditorEvents element
-  where setEditorFocus = H.gets getAstId >>= setFocus
+  setEditorFocus
+  where setEditorFocus = H.gets toEditorId >>= setFocus
         setEditorWriteState = H.modify_ \state -> state{ editorState = Write { parseErr: Nothing, pendingContent: "" } }
         setTextContent textContent node = H.liftEffect $ Node.setTextContent textContent node
-        setEditorTextContent element = do
+        setEditorContent element = do
           ast <- H.gets _.ast
           setTextContent (show ast.expr) (HTMLElement.toNode element)
         getEditorElement = H.getHTMLElementRef editorRef
@@ -438,35 +449,34 @@ handleEditBtnClicked event = do
         onEvent name handler target = void $ H.subscribe $ ES.eventListenerEventSource (EventType name) target handler
         handleBlur _ = Just EditorBlurred
         handleInput = Just <<< EditorContentChanged
+        setFocus = H.liftEffect <<< Util.setFocus
 
 handleEditorBlurred :: H.HalogenM State Action ChildSlots Message Aff Unit
-handleEditorBlurred = do
-  old <- H.gets showAst
-  pendingContent >>= traverse_ \new -> do
-    if (new /= "") && (new /= old)
-      then case Parse.parse new of
-        Left err -> do
-          H.modify_ \state -> state{ editorState = Write { parseErr: Just err, pendingContent: new } }
-        Right ast -> do
-          H.raise $ NewAst { ast }
-          H.modify_ \state -> state{ editorState = Read }
-      else H.modify_ \state -> state{ editorState = Read }
-  where pendingContent = H.gets getPendingContent
-        showAst = show <<< _.expr <<< _.ast
+handleEditorBlurred = attemptCreateNewAst
 
 stopProp :: MouseEvent -> H.HalogenM State Action ChildSlots Message Aff Unit
 stopProp = void <<< liftEffect <<< stopPropagation <<< toEvent
 
-setFocus :: String -> H.HalogenM State Action ChildSlots Message Aff Unit
-setFocus = H.liftEffect <<< Util.setFocus
-
-getPendingContent :: State -> Maybe String
-getPendingContent state =
+toPendingContent :: State -> Maybe String
+toPendingContent state =
   case state.editorState of
     Read ->
       Nothing
     Write { pendingContent } ->
       Just pendingContent
 
-getAstId :: State -> String
-getAstId { ast, lineIndex } = show lineIndex <> ast.id
+toEditorId :: State -> String
+toEditorId { ast, lineIndex } = show lineIndex <> ast.id
+
+deleteEditorContent :: Node.Node -> Effect Unit
+deleteEditorContent = EU.runEffectFn1 _deleteEditorContent
+
+markEditorErrPos :: { before :: String, markText :: String, after :: String } -> Node.Node -> Effect Unit
+markEditorErrPos = EU.runEffectFn2 _markEditorErrPos
+
+setEditorTextContent :: String -> Node.Node -> Effect Unit
+setEditorTextContent = EU.runEffectFn2 _setEditorTextContent
+
+foreign import _deleteEditorContent :: EU.EffectFn1 Node.Node Unit
+foreign import _markEditorErrPos :: EU.EffectFn2 { before :: String, markText :: String, after :: String } Node.Node Unit
+foreign import _setEditorTextContent :: EU.EffectFn2 String Node.Node Unit
