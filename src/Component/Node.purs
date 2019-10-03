@@ -30,7 +30,6 @@ import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
 import Halogen.Query.EventSource as ES
 import Parse as Parse
-import Web.DOM.Node (setTextContent, textContent)
 import Web.DOM.Node as Node
 import Web.Event.Event (Event, EventType(..), preventDefault, stopPropagation)
 import Web.Event.Event as Event
@@ -361,16 +360,28 @@ handleEditorKeyDown editorKey event = do
 
 handleEditorContentChanged :: Event -> H.HalogenM State Action ChildSlots Message Aff Unit
 handleEditorContentChanged event = do
-  let target = Event.target event >>= Node.fromEventTarget
-  case target of
-    Just t -> do
-      pendingContent <- H.liftEffect $ textContent t
-      H.modify_ \state -> state{ editorState = updatePendingContent pendingContent state.editorState }
-      if pendingContent == ""
-      then H.liftEffect $ Util.setLineBreak t
-      else pure unit
-    Nothing -> do
-      pure unit
+  getEditorNode # traverse_ \node -> do
+    pendingContent <- getPendingContent node
+    deleteEditorContentIfEmpty pendingContent node
+    removeHighlightIfErr pendingContent node
+    updateEditorState pendingContent
+  where getEditorNode = Event.target event >>= Node.fromEventTarget
+        getPendingContent = H.liftEffect <<< Node.textContent
+        updateEditorState content = H.modify_ \state -> state{ editorState = updatePendingContent content state.editorState }
+        deleteEditorContentIfEmpty content node =
+          if content == ""
+            then H.liftEffect $ Util.deleteEditorContent node
+            else pure unit
+        removeHighlightIfErr content node = 
+          H.gets (getParseErr <<< _.editorState) >>= traverse_ \_ ->
+            H.liftEffect $ Util.setEditorTextContent content node
+
+getParseErr :: EditorState -> Maybe Parse.ParseErr
+getParseErr = case _ of
+  Read ->
+    Nothing
+  Write editor ->
+    editor.parseErr
 
 updatePendingContent :: String -> EditorState -> EditorState
 updatePendingContent pendingContent editorState =
@@ -415,9 +426,10 @@ handleEditBtnClicked event = do
     bindEditorEvents element
   where setEditorFocus = H.gets getAstId >>= setFocus
         setEditorWriteState = H.modify_ \state -> state{ editorState = Write { parseErr: Nothing, pendingContent: "" } }
+        setTextContent textContent node = H.liftEffect $ Node.setTextContent textContent node
         setEditorTextContent element = do
           ast <- H.gets _.ast
-          H.liftEffect $ setTextContent (show ast.expr) (HTMLElement.toNode element)
+          setTextContent (show ast.expr) (HTMLElement.toNode element)
         getEditorElement = H.getHTMLElementRef editorRef
         bindEditorEvents element = do
           let eventTarget = HTMLElement.toEventTarget element

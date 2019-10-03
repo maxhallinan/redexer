@@ -52,7 +52,7 @@ exports._setEditorTextContent = function (textContent, node) {
   var anchorNode = selection.anchorNode;
   node.textContent = textContent;
   try {
-    selection.setPosition(anchorNode, anchorOffset);
+    selection.setPosition(node.childNodes[0], anchorOffset);
   } catch (error) {
     selection.setPosition(node.childNodes[0], 0);
   }

@@ -9,6 +9,10 @@ module Component.Util
   , setFocus
   , setSelectionRange
   , setLineBreak
+
+  , deleteEditorContent
+  , highlightErrPos 
+  , setEditorTextContent 
   ) where
 
 import Prelude
@@ -62,8 +66,8 @@ foreign import _setLineBreak :: EU.EffectFn1 DOM.Node Unit
 deleteEditorContent :: DOM.Node -> Effect Unit
 deleteEditorContent = EU.runEffectFn1 _deleteEditorContent
 
-highlightErPos :: { before :: String, highlight :: String, after :: String } -> DOM.Node -> Effect Unit
-highlightErPos = EU.runEffectFn2 _highlightErrPos
+highlightErrPos :: { before :: String, highlight :: String, after :: String } -> DOM.Node -> Effect Unit
+highlightErrPos = EU.runEffectFn2 _highlightErrPos
 
 setEditorTextContent :: String -> DOM.Node -> Effect Unit
 setEditorTextContent = EU.runEffectFn2 _setEditorTextContent
