@@ -264,3 +264,7 @@ h6 {
   position: relative;
   top: -4px;
 }
+
+.line .disabled {
+  color: #b3bac5;
+}

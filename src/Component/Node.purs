@@ -1,16 +1,16 @@
-module Component.Node
-  ( Slot
+module Component.Node ( Slot
   , Input
   , LinePos(..)
   , Message(..)
   , Focus
   , Highlight(..)
-  , Query
+  , Query(..)
   , component
   , toLinePos
   ) where
 
 import Prelude
+import Debug.Trace (spy)
 
 import Component.Util as Util
 import Core as Core
@@ -48,17 +48,18 @@ type Input =
 
 type State =
   { ast :: Core.Node
-  , editorState :: EditorState
+  , interaction :: Interaction
   , lineIndex :: Int
   , linePos :: LinePos
   , focus :: Maybe Focus
   , reducedNodeId :: Maybe String
   }
 
-data EditorState
-  = Read
+data Interaction
+  = Disabled
+  | Read
   | Write WriteState
-derive instance eqEditorState :: Eq EditorState
+derive instance eqInteraction :: Eq Interaction
 
 type WriteState = { pendingContent :: String , parseErr :: Maybe Parse.ParseErr }
 
@@ -107,11 +108,15 @@ toEditorKey = case _ of
 
 data Message
   = Applied String
+  | EditorOpened { lineIndex :: Int }
+  | EditorClosed
   | NewAst { ast :: Core.Node }
   | NodeHoverOn { lineIndex :: Int, nodeId :: String }
   | NodeHoverOff
 
 data Query a
+  = Disable { lineIndex :: Int } a
+  | Enable a
 
 type Slot = H.Slot Query Message
 
@@ -123,6 +128,7 @@ component =
   { initialState: initState
   , render
   , eval: H.mkEval $ H.defaultEval { handleAction = handleAction
+                                   , handleQuery = handleQuery
                                    , receive = Just <<< InputUpdated
                                    }
   }
@@ -130,7 +136,7 @@ component =
 initState :: Input -> State
 initState i =
   { ast: i.ast
-  , editorState: Read
+  , interaction: Read
   , lineIndex: i.lineIndex
   , linePos: i.linePos
   , focus: i.focus
@@ -139,6 +145,9 @@ initState i =
 
 render :: State -> H.ComponentHTML Action ChildSlots Aff
 render state =
+  let
+    _ = spy "state" state
+  in
   case state.linePos of
     First ->
       renderEditableLine state
@@ -158,7 +167,12 @@ renderReadOnlyLine state =
 
 renderEditableLine :: State -> H.ComponentHTML Action ChildSlots Aff
 renderEditableLine state =
-  case state.editorState of
+  case state.interaction of
+    Disabled ->
+      HH.div
+        []
+        [ renderReadNode state
+        ]
     Read ->
       HH.div
         []
@@ -250,13 +264,16 @@ renderReadNode state =
         then nodeClassNames state <> ["reduceable"]
         else nodeClassNames state
   in
-  HH.span
-    [ Util.classNames cn
-    , HE.onClick handleClick
-    , HE.onMouseOver handleMouseEnter
-    , HE.onMouseOut handleMouseLeave
-    ]
-    [ renderNodeBody state ]
+  if state.interaction == Disabled
+    then HH.span [ Util.className "disabled" ] [ renderNodeBody state ]
+    else
+      HH.span
+        [ Util.classNames cn
+        , HE.onClick handleClick
+        , HE.onMouseOver handleMouseEnter
+        , HE.onMouseOut handleMouseLeave
+        ]
+        [ renderNodeBody state ]
 
 renderNodeBody :: State -> H.ComponentHTML Action ChildSlots Aff
 renderNodeBody state =
@@ -313,6 +330,26 @@ renderApply { fn, arg } state@{ ast, focus, reducedNodeId } =
     , HH.text ")"
     ]
 
+handleQuery :: forall a. Query a -> H.HalogenM State Action ChildSlots Message Aff (Maybe a)
+handleQuery = case _ of
+  Disable { lineIndex } next ->
+    handleDisableQuery { lineIndex } next
+  Enable next ->
+    handleEnableQuery next
+
+handleDisableQuery :: forall a. { lineIndex :: Int } -> a -> H.HalogenM State Action ChildSlots Message Aff (Maybe a)
+handleDisableQuery { lineIndex } next = do
+  currentLine <- H.gets _.lineIndex
+  when (currentLine /= lineIndex) setDisabledState
+  returnNext
+  where setDisabledState = H.modify_ \state -> state{ interaction = Disabled }
+        returnNext = pure $ Just next
+
+handleEnableQuery :: forall a. a -> H.HalogenM State Action ChildSlots Message Aff (Maybe a)
+handleEnableQuery next = do
+  H.modify_ \state -> state{ interaction = Read }
+  pure $ Just next
+
 handleAction :: Action -> H.HalogenM State Action ChildSlots Message Aff Unit
 handleAction = case _ of
   InputUpdated input -> do
@@ -347,14 +384,17 @@ attemptCreateNewAst = getPendingContent >>= traverse_ \new -> do
   where getPendingContent = H.gets toPendingContent
         getCurrentContent = H.gets showAst
         showAst = show <<< _.expr <<< _.ast
-        setEditorReadState = H.modify_ \state -> state{ editorState = Read }
+        setEditorReadState = do
+          H.modify_ \state -> state{ interaction = Read }
+          raiseEditorClosed
+        raiseEditorClosed = H.raise EditorClosed
         getEditorElement = H.getHTMLElementRef editorRef
         isValidContent new = do
           old <- getCurrentContent
           pure $ (new /= "") && (new /= old)
         raiseNewAst ast = H.raise $ NewAst { ast }
-        setEditorErrState pendingContent err = 
-          H.modify_ \state -> state{ editorState = Write { parseErr: Just err, pendingContent } }
+        setEditorErrState pendingContent err =
+          H.modify_ \state -> state{ interaction = Write { parseErr: Just err, pendingContent } }
         markErrPosInEditor pendingContent err = getEditorElement >>= traverse_ \element ->
           let
             parts = highlightErrPos pendingContent (Parse.errPos err)
@@ -375,28 +415,32 @@ handleEditorContentChanged event = do
     pendingContent <- getPendingContent node
     removeHighlightIfErr pendingContent node
     deleteEditorContentIfEmpty pendingContent node
-    updateEditorState pendingContent
+    updateInteraction pendingContent
   where getEditorNode = Event.target event >>= Node.fromEventTarget
         getPendingContent = H.liftEffect <<< Node.textContent
-        updateEditorState content = H.modify_ \state -> state{ editorState = updatePendingContent content state.editorState }
+        updateInteraction content = H.modify_ \state -> state{ interaction = updatePendingContent content state.interaction }
         deleteEditorContentIfEmpty content node =
           if content == ""
             then H.liftEffect $ deleteEditorContent node
             else pure unit
         removeHighlightIfErr content node =
-          H.gets (getParseErr <<< _.editorState) >>= traverse_ \_ ->
+          H.gets (getParseErr <<< _.interaction) >>= traverse_ \_ ->
             H.liftEffect $ setEditorTextContent content node
 
-getParseErr :: EditorState -> Maybe Parse.ParseErr
+getParseErr :: Interaction -> Maybe Parse.ParseErr
 getParseErr = case _ of
+  Disabled ->
+    Nothing
   Read ->
     Nothing
   Write editor ->
     editor.parseErr
 
-updatePendingContent :: String -> EditorState -> EditorState
-updatePendingContent pendingContent editorState =
-  case editorState of
+updatePendingContent :: String -> Interaction -> Interaction
+updatePendingContent pendingContent interaction =
+  case interaction of
+    Disabled ->
+      Disabled
     Read ->
       Read
     Write _ ->
@@ -430,13 +474,14 @@ handleNodeMouseLeave nodeId event = do
 handleEditBtnClicked :: MouseEvent -> H.HalogenM State Action ChildSlots Message Aff Unit
 handleEditBtnClicked event = do
   stopProp event
+  raiseEditorOpened
   setEditorWriteState
   getEditorElement >>= traverse_ \element -> do
     setEditorContent element
     bindEditorEvents element
   setEditorFocus
   where setEditorFocus = H.gets toEditorId >>= setFocus
-        setEditorWriteState = H.modify_ \state -> state{ editorState = Write { parseErr: Nothing, pendingContent: "" } }
+        setEditorWriteState = H.modify_ \state -> state{ interaction = Write { parseErr: Nothing, pendingContent: "" } }
         setTextContent textContent node = H.liftEffect $ Node.setTextContent textContent node
         setEditorContent element = do
           ast <- H.gets _.ast
@@ -450,6 +495,9 @@ handleEditBtnClicked event = do
         handleBlur _ = Just EditorBlurred
         handleInput = Just <<< EditorContentChanged
         setFocus = H.liftEffect <<< Util.setFocus
+        raiseEditorOpened = do
+          lineIndex <- H.gets _.lineIndex
+          H.raise $ EditorOpened { lineIndex }
 
 handleEditorBlurred :: H.HalogenM State Action ChildSlots Message Aff Unit
 handleEditorBlurred = attemptCreateNewAst
@@ -459,7 +507,9 @@ stopProp = void <<< liftEffect <<< stopPropagation <<< toEvent
 
 toPendingContent :: State -> Maybe String
 toPendingContent state =
-  case state.editorState of
+  case state.interaction of
+    Disabled ->
+      Nothing
     Read ->
       Nothing
     Write { pendingContent } ->

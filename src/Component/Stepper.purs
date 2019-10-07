@@ -1,6 +1,7 @@
 module Component.Stepper (component) where
 
 import Prelude
+import Debug.Trace (spy)
 
 import Component.Node as Node
 import Component.Util as U
@@ -43,6 +44,8 @@ data Action
   | Applied String
   | NewAst { ast :: Core.Node }
   | CurrentNodeChanged (Maybe CurrentNode)
+  | EditorOpened { lineIndex :: Int }
+  | EditorClosed
 
 type ChildSlots = ( nodeSlot :: Node.Slot SlotIndex )
 
@@ -148,6 +151,13 @@ handleMessage :: Node.Message -> Maybe Action
 handleMessage = case _ of
   Node.Applied id ->
     Just (Applied id)
+  Node.EditorOpened { lineIndex } ->
+    Just (EditorOpened { lineIndex })
+  Node.EditorClosed ->
+    let
+        _ = spy "EditorClosed" ""
+    in
+    Just EditorClosed
   Node.NewAst { ast } ->
     Just (NewAst { ast })
   Node.NodeHoverOn currentNode ->
@@ -161,10 +171,21 @@ handleAction action = case action of
     handleInitialize
   Applied id ->
     handleApplied id
+  EditorOpened { lineIndex } ->
+    handleEditorOpened lineIndex     
+  EditorClosed ->
+    handleEditorClosed
   NewAst { ast } ->
     handleNewAst ast
   CurrentNodeChanged currentNode ->
     handleCurrentNode currentNode
+
+handleEditorOpened :: forall o. Int -> H.HalogenM State Action ChildSlots o Aff Unit
+handleEditorOpened lineIndex =
+  void $ H.queryAll _nodeSlot (H.tell $ Node.Disable { lineIndex })
+
+handleEditorClosed :: forall o. H.HalogenM State Action ChildSlots o Aff Unit
+handleEditorClosed = void $ H.queryAll _nodeSlot (H.tell Node.Enable)
 
 handleCurrentNode :: forall o. Maybe CurrentNode -> H.HalogenM State Action ChildSlots o Aff Unit
 handleCurrentNode currentNode =
