@@ -4,6 +4,7 @@ import Prelude
 
 import Test.Core as Core
 import Test.Parse as Parse
+import Test.ParseTerm as ParseTerm
 import Test.Spec.Reporter.Console (consoleReporter)
 import Test.Spec.Runner (runSpec)
 import Effect (Effect)
@@ -13,3 +14,4 @@ main :: Effect Unit
 main = launchAff_ $ runSpec [consoleReporter] do
   Core.spec
   Parse.spec
+  ParseTerm.spec
