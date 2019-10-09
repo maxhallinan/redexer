@@ -5,35 +5,33 @@ import Prelude
 import Data.Either (Either(..))
 import Effect.Aff (Aff)
 import ParseTerm (parse)
-import Term (eval)
+import Term (smallStep)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
 
 spec :: Spec Unit
 spec = do
   describe "Term" do
-    describe "Term.eval" do
-      it "Evaluates a value." $ do
-        "x" `shouldEvalTo` "x"
-        "λx.x" `shouldEvalTo` "(λx.x)"
-        "λx.λy.λz. x y z" `shouldEvalTo` "(λx.(λy.(λz.((x y) z))))"
-      it "Evaluates application of variable to variable." $ do
-        "x y" `shouldEvalTo` "(x y)"
-      it "Evaluates application of variable to function." $ do
-        "(λx.x) y" `shouldEvalTo` "y"
+    describe "Term.smallStep" do
+      it "Does nothing when term is in normal form." $ do
+        "x" `shouldStepTo` "x"
+        "λx.x" `shouldStepTo` "(λx.x)"
+        "λx.λy.λz. x y z" `shouldStepTo` "(λx.(λy.(λz.((x y) z))))"
+        "x y" `shouldStepTo` "(x y)"
       it "Substitutes argument for all occurences of function parameter." $ do
-        "(λx.x x z x) y" `shouldEvalTo` "(((y y) z) y)"
+        "(λx.x) y" `shouldStepTo` "y"
+        "(λx.x x z x) y" `shouldStepTo` "(((y y) z) y)"
       it "Does not substitute where outer parameter is shadowed by inner parameter." $ do
-        "(λx.λx.x) y" `shouldEvalTo` "(λx.x)"
+        "(λx.λx.x) y" `shouldStepTo` "(λx.x)"
       it "Avoids variable capture." $ do
-        "(λx.(λy.x y) z) y" `shouldEvalTo` "((λy.(y1 y)) z)"
-        "(λx.(λy.x y) z) λy.y" `shouldEvalTo` "((λy.((λy1.y1) y)) z)"
-        "(λx.(λy.λz.x y z) z) λy.y" `shouldEvalTo` "((λy.(λz.(((λy1.y1) y) z))) z)"
+        "(λx.(λy.x y) z) y" `shouldStepTo` "((λy.(y1 y)) z)"
+        "(λx.(λy.x y) z) λy.y" `shouldStepTo` "((λy.((λy1.y1) y)) z)"
+        "(λx.(λy.λz.x y z) z) λy.y" `shouldStepTo` "((λy.(λz.(((λy1.y1) y) z))) z)"
 
-shouldEvalTo :: String -> String -> Aff Unit
-shouldEvalTo input expected =
+shouldStepTo :: String -> String -> Aff Unit
+shouldStepTo input expected =
   case parse input of
     Left err ->
       fail $ "Parsing \"" <> input <> "\" failed with " <> (show err)
     Right term ->
-      (show $ eval term) `shouldEqual` expected
+      (show $ smallStep term) `shouldEqual` expected

@@ -2,13 +2,18 @@ module Term
   ( Ann
   , Term(..)
   , emptyAnn
-  , eval
+  , genIds
+  , isRedex
+  , reduceOneStep
+  , smallStep
   ) where
 
 import Prelude
 
 import Data.Array as Array
 import Data.Maybe (isNothing, maybe)
+import Data.UUID as U
+import Effect (Effect)
 
 data Term
   = Var {varName :: String, index :: Int} Ann
@@ -16,26 +21,26 @@ data Term
   | Apply Term Term Ann
 
 instance showTerm :: Show Term where
-  show = showTerm'
+  show = showTermImpl
 
 type Ann = {uuid :: String}
 
 emptyAnn :: Ann
 emptyAnn = {uuid: ""}
 
-eval :: Term -> Term
-eval = case _ of
+smallStep :: Term -> Term
+smallStep = case _ of
   Apply (Fn {body} _) arg _ ->
-    subTop arg body
+    subOuter arg body
   Apply t1 t2 ann ->
-    Apply (eval t1) (eval t2) ann
+    Apply (smallStep t1) (smallStep t2) ann
   Fn {paramName, body} ann ->
-    Fn {paramName, body: eval body} ann
+    Fn {paramName, body: smallStep body} ann
   t ->
     t
 
-subTop :: Term -> Term -> Term
-subTop sub term = shift (-1) (substitute 0 (shift 1 sub) term)
+subOuter :: Term -> Term -> Term
+subOuter sub term = shift (-1) (substitute 0 (shift 1 sub) term)
 
 {-
   _Types and Programming Languages_ by Benjamin C. Pierce, page 80
@@ -79,8 +84,8 @@ shift inc term = go 0 term
 
 type Context = Array String
 
-showTerm' :: Term -> String
-showTerm' = go []
+showTermImpl :: Term -> String
+showTermImpl = go []
   where
   go ctx term = case term of
     Var { varName, index } _ ->
@@ -124,3 +129,59 @@ pickFreshName ctx name = go 0 name
       then {ctx: Array.snoc ctx n, name: n}
       else let c = count + 1 in
       go c (n <> show c)
+
+genIds :: Term -> Effect Term
+genIds = case _ of
+  Var v ann -> do
+    a <- withUuid ann
+    pure $ Var v a
+  Fn {paramName, body} ann -> do
+    a <- withUuid ann
+    b <- genIds body
+    pure $ Fn {paramName, body: b} a
+  Apply left right ann -> do
+    a <- withUuid ann
+    l <- genIds left
+    r <- genIds right
+    pure $ Apply l r a
+  where
+  withUuid ann = do
+    uuid <- U.toString <$> U.genUUID
+    pure ann{uuid = uuid}
+
+reduceOneStep :: String -> Term -> Term
+reduceOneStep uuid term = reduceBy smallStep uuid term
+
+reduceBy :: (Term -> Term) -> String -> Term -> Term
+reduceBy reducer uuid term = case term of
+  Var _ ann ->
+    if ann.uuid == uuid
+      then reducer term
+      else term
+  Fn fn ann ->
+    if ann.uuid == uuid
+      then reducer term
+      else Fn fn{body = reduceBy reducer uuid fn.body} ann
+  Apply left right ann ->
+    if ann.uuid == uuid
+      then reducer term
+      else Apply (reduceBy reducer uuid left) (reduceBy reducer uuid right) ann
+
+termId :: Term -> String
+termId = _.uuid <<< toAnn
+
+toAnn :: Term -> Ann
+toAnn = case _ of
+  Var _ ann ->
+    ann
+  Fn _ ann ->
+    ann
+  Apply _ _ ann ->
+    ann
+
+isRedex :: Term -> Boolean
+isRedex = case _ of
+  Apply _ _ _ ->
+    true
+  _ ->
+    false
