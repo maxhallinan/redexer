@@ -1,185 +1,126 @@
-module Term 
-  ( Annotated(..)
-  , Term
-  , TermF(..)
-  , TermType(..)
+module Term
+  ( Ann
+  , Term(..)
+  , emptyAnn
   , eval
-  , isTermType
-  , shift
-  , showTerm
-  , typeOf
   ) where
 
 import Prelude
 
-import Control.Monad.Free (Free)
-import Control.Monad.Free (Free)
 import Data.Array as Array
-import Data.Bifunctor (rmap)
-import Data.Functor.Compose (Compose(..), bihoistCompose)
-import Data.Functor.Mu (Mu(..))
-import Data.Functor.Mu as Mu
-import Matryoshka (cata, hylo, topDownCata)
-import Data.Maybe (Maybe(..), maybe)
-import Data.Traversable (traverse)
-import Data.Tuple (Tuple(..))
+import Data.Maybe (isNothing, maybe)
 
-type Term = Annotated TermF
+data Term
+  = Var {varName :: String, index :: Int} Ann
+  | Fn {paramName :: String, body :: Term} Ann
+  | Apply Term Term Ann
 
-data Annotated f = Ann { id :: String } (f (Annotated f))
+instance showTerm :: Show Term where
+  show = showTerm'
 
-unAnn :: forall f. Annotated f -> f (Annotated f)
-unAnn (Ann _ f) = f
+type Ann = {uuid :: String}
 
-instance eqTermF :: Eq t => Eq (TermF t) where
-  eq (Var v1) (Var v2) = v1.index == v2.index
-  eq (Fn a1) (Fn a2) = a1.body == a2.body
-  eq (Apply l1 r1) (Apply l2 r2) = l1 == l2 && r1 == r2
-  eq _ _ = false
+emptyAnn :: Ann
+emptyAnn = {uuid: ""}
 
-type Context = Array String
-
-showTerm :: Term -> String
-showTerm = go []
-  where 
-  go ctx term = case unAnn term of
-    Var { varName, index } ->
-      indexToName ctx { name: varName, index }
-    Fn { paramName, body } ->
-      let
-        fresh = pickFreshName ctx paramName
-      in
-      "(λ" <> fresh.name <> "." <> go fresh.ctx body <> ")"
-    Apply left right ->
-      "(" <> go ctx left <> " " <> go ctx right <> ")"
-
-indexToName :: Context -> { name :: String, index :: Int } -> String
-indexToName ctx { name, index } = 
-  let
-    isFree = index >= Array.length ctx
-    isFresh = Array.findIndex (_ == name) ctx == Nothing
-  in
-  if isFree || isFresh
-    then 
-      if isFresh
-        then name
-        else name <> show index
-      else 
-        maybe name identity (Array.index ctx (Array.length ctx - index - 1))
-
-pickFreshName :: Context -> String -> { ctx :: Context, name :: String }
-pickFreshName ctx name = go 0 name
-  where 
-  go count n = 
-    if Array.elemIndex n ctx == Nothing
-      then { ctx: Array.snoc ctx n, name: n }
-      else 
-        let
-          c = count + 1
-        in
-        go c (n <> show c)
-
-data TermType = V | F | A
-derive instance eqTermType :: Eq TermType
-
-typeOf :: Term -> TermType
-typeOf t = case unAnn t of
-  Var _ -> V
-  Fn _ -> F
-  Apply _ _ -> A
-
-isTermType :: TermType -> Term -> Boolean
-isTermType termType term = typeOf term == termType
-
-shift :: Int -> Term -> Term
-shift inc term = go 0 term
-  where
-  go c t = case t of
-    Ann ann (Var { varName, index }) ->
-      if index >= c
-        then Ann ann (Var { varName, index: index + inc })
-        else Ann ann (Var { varName, index })
-    Ann ann (Fn { paramName, body }) ->
-      Ann ann (Fn { paramName, body: go (c + 1) body })
-    Ann ann (Apply l r) ->
-      Ann ann (Apply (go c l) (go c r))
-
-substitute :: Int -> Term -> Term -> Term
-substitute k sub term = go 0 term
-  where 
-  go c t = case t of
-    Ann ann (Var { varName, index }) ->
-      if index == k + c
-        then shift c sub
-        else Ann ann (Var { varName, index })
-    Ann ann (Fn { paramName, body }) ->
-      Ann ann (Fn { paramName, body: go (c + 1) body })
-    Ann ann (Apply l r) ->
-      Ann ann (Apply (go c l) (go c r))
+eval :: Term -> Term
+eval = case _ of
+  Apply (Fn {body} _) arg _ ->
+    subTop arg body
+  Apply t1 t2 ann ->
+    Apply (eval t1) (eval t2) ann
+  Fn {paramName, body} ann ->
+    Fn {paramName, body: eval body} ann
+  t ->
+    t
 
 subTop :: Term -> Term -> Term
 subTop sub term = shift (-1) (substitute 0 (shift 1 sub) term)
 
-eval :: Term -> Term
-eval = case _ of
-  Ann _ (Apply (Ann _ (Fn { body })) arg) ->
-    subTop arg body
-  Ann ann (Apply t1 t2) ->
-    Ann ann (Apply (eval t1) (eval t2))
-  Ann ann (Fn { paramName, body }) ->
-    Ann ann (Fn { paramName, body: eval body })
-  t ->
-    t
-
-type Term' = Mu TermF'
-
-{-- type AnnTermF = Compose AnnF TermF --}
-
-{-- data AnnF a = AnnF a Ann' --}
-
-{-- derive instance functorAnnF :: Functor AnnF --}
-
-type Ann' = { id :: String }
-
-data TermF t
-  = Var { varName :: String, index :: Int }
-  | Fn { paramName :: String, body :: t }
-  | Apply t t
-
-derive instance functorTermF :: Functor TermF
-
-data TermF' t
-  = Var' { varName :: String, index :: Int } Ann'
-  | Fn' { paramName :: String, body :: t } Ann'
-  | Apply' t t Ann'
-
-derive instance functorTermF' :: Functor TermF'
-
-shift' :: Int -> Term' -> Term'
-shift' inc term = cata (map Mu.roll <<< go) term 0
+{-
+  _Types and Programming Languages_ by Benjamin C. Pierce, page 80
+  [i -> s]var     = s     if var = i
+  [i -> s]var     = var   otherwise
+  [i -> s]λ.t     = λ.[i + 1 -> shift[1 0]s]t
+  [i -> s](t1 t2) = ([i -> s]t1 [i -> s]t2)
+-}
+substitute :: Int -> Term -> Term -> Term
+substitute k sub term = go 0 term
   where
-  go t c = case t of
-    Var' { varName, index } ann ->
-      if index >= c
-        then Var' {varName, index: index + inc} ann
-        else Var' {varName, index} ann
-    Fn' { paramName, body } ann ->
-      Fn' { paramName, body: body (c + 1)} ann
-    Apply' l r ann ->
-      Apply' (l c) (r c) ann
-
-substitute' :: Int -> Term' -> Term' -> Term'
-substitute' k sub term = cata (map Mu.roll <<< go) term 0
-  where
-  go t c = case t of
-    Var' { varName, index } ann ->
+  go c t = case t of
+    Var {varName, index} ann ->
       if index == k + c
-        then Mu.unroll (shift' c sub)
-        else Var' { varName, index } ann
-    Fn' { paramName, body } ann ->
-      Fn' { paramName, body: body (c + 1) } ann
-    Apply' l r ann ->
-      Apply' (l c) (r c) ann
+        then shift c sub
+        else Var {varName, index} ann
+    Fn {paramName, body} ann ->
+      Fn {paramName, body: go (c + 1) body} ann
+    Apply l r ann ->
+      Apply (go c l) (go c r) ann
 
-subTop' :: Term' -> Term' -> Term'
-subTop' sub term = shift' (-1) (substitute' 0 (shift' 1 sub) term)
+{-
+  _Types and Programming Languages_ by Benjamin C. Pierce, page 79
+  shift[i c]var     = var       if var < c
+  shift[i c]var     = var + i   if var >= c
+  shift[i c]λ.t     = λ.<shift[i c + 1]t>
+  shift[i c](t1 t2) = (<shift[i c]t1> <shift[i c]t2>)
+-}
+shift :: Int -> Term -> Term
+shift inc term = go 0 term
+  where
+  go c t = case t of
+    Var {varName, index} ann ->
+      if index >= c
+        then Var {varName, index: index + inc} ann
+        else Var {varName, index} ann
+    Fn {paramName, body} ann ->
+      Fn {paramName, body: go (c + 1) body} ann
+    Apply l r ann ->
+      Apply (go c l) (go c r) ann
+
+type Context = Array String
+
+showTerm' :: Term -> String
+showTerm' = go []
+  where
+  go ctx term = case term of
+    Var { varName, index } _ ->
+      indexToName ctx {name: varName, index}
+    Fn {paramName, body} _ ->
+      let
+        fresh = pickFreshName ctx paramName
+      in
+      "(λ" <> fresh.name <> "." <> go fresh.ctx body <> ")"
+    Apply left right _ ->
+      "(" <> go ctx left <> " " <> go ctx right <> ")"
+
+indexToName :: Context -> {name :: String, index :: Int} -> String
+indexToName ctx {name, index} =
+  if not isFree
+    then
+      let
+        {-
+          λx.λy.λz.z y x = λλλ.0 1 2
+          ctx = ["x", "y", "z"]
+          x = 3 - 2 - 1 = 0
+          y = 3 - 1 - 1 = 1
+          z = 3 - 0 - 1 = 2
+        -}
+        offset = ctxSize - index - 1
+      in
+      maybe name identity (Array.index ctx offset)
+    else if isFresh
+      then name
+      else name <> show index
+  where
+  ctxSize = Array.length ctx
+  isFree = index >= ctxSize
+  isFresh = isNothing $ Array.findIndex (_ == name) ctx
+
+pickFreshName :: Context -> String -> {ctx :: Context, name :: String}
+pickFreshName ctx name = go 0 name
+  where
+  go count n =
+    if isNothing $ Array.elemIndex n ctx
+      then {ctx: Array.snoc ctx n, name: n}
+      else let c = count + 1 in
+      go c (n <> show c)

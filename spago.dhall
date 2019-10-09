@@ -14,7 +14,6 @@ You can edit this file as you like.
     , "functors"
     , "generics-rep"
     , "halogen"
-    , "matryoshka"
     , "parsing"
     , "psci-support"
     , "quickcheck"

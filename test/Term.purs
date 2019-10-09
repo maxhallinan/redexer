@@ -5,7 +5,7 @@ import Prelude
 import Data.Either (Either(..))
 import Effect.Aff (Aff)
 import ParseTerm (parse)
-import Term (eval, showTerm)
+import Term (eval)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
 
@@ -16,6 +16,7 @@ spec = do
       it "Evaluates a value." $ do
         "x" `shouldEvalTo` "x"
         "λx.x" `shouldEvalTo` "(λx.x)"
+        "λx.λy.λz. x y z" `shouldEvalTo` "(λx.(λy.(λz.((x y) z))))"
       it "Evaluates application of variable to variable." $ do
         "x y" `shouldEvalTo` "(x y)"
       it "Evaluates application of variable to function." $ do
@@ -27,6 +28,7 @@ spec = do
       it "Avoids variable capture." $ do
         "(λx.(λy.x y) z) y" `shouldEvalTo` "((λy.(y1 y)) z)"
         "(λx.(λy.x y) z) λy.y" `shouldEvalTo` "((λy.((λy1.y1) y)) z)"
+        "(λx.(λy.λz.x y z) z) λy.y" `shouldEvalTo` "((λy.(λz.(((λy1.y1) y) z))) z)"
 
 shouldEvalTo :: String -> String -> Aff Unit
 shouldEvalTo input expected =
@@ -34,4 +36,4 @@ shouldEvalTo input expected =
     Left err ->
       fail $ "Parsing \"" <> input <> "\" failed with " <> (show err)
     Right term ->
-      (showTerm $ eval term) `shouldEqual` expected
+      (show $ eval term) `shouldEqual` expected

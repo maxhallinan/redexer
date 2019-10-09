@@ -123,20 +123,6 @@ let upstream =
 
 let overrides = {=}
 
-let additions = 
-  { matryoshka =
-      { dependencies = 
-          [ "prelude"
-          , "fixed-points"
-          , "free"
-          , "transformers"
-          , "profunctor"
-          ]
-      , repo = 
-          "https://github.com/slamdata/purescript-matryoshka.git"
-      , version = 
-          "v0.4.0"
-      }
-  }
+let additions = {=}
 
 in  upstream // overrides // additions

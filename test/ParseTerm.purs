@@ -9,7 +9,7 @@ import Data.NonEmpty ((:|))
 import Data.Char.Gen (genAlpha, genDigitChar)
 import Data.String.CodeUnits (fromCharArray, toCharArray)
 import ParseTerm (parse)
-import Term (TermType(..), isTermType)
+import Term (Term(..))
 import Test.Spec (Spec, describe, it)
 import Test.Spec.QuickCheck (quickCheck)
 import Test.QuickCheck.Arbitrary (class Arbitrary)
@@ -27,6 +27,19 @@ spec = do
         quickCheck prop_parseApply
       it "Parses an arbitrary expression." $ do
         quickCheck prop_parseExpr
+
+data TermType = V | F | A
+
+derive instance eqTermType :: Eq TermType
+
+typeOf :: Term -> TermType
+typeOf t = case t of
+  Var _ _ -> V
+  Fn _ _ -> F
+  Apply _ _ _ -> A
+
+isTermType :: TermType -> Term -> Boolean
+isTermType termType term = typeOf term == termType
 
 prop_parseVar :: ArbVar -> Boolean
 prop_parseVar (ArbVar s) = parsesExpectedType V s
@@ -124,3 +137,4 @@ genWhiteSpace = fromCharArray <$> resize 3 (arrayOf genWhitespaceChar)
 
 genWhitespaceChar :: Gen Char
 genWhitespaceChar = elements $ ' ' :| toCharArray "\t\n\r"
+
