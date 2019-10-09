@@ -19,7 +19,7 @@ import Data.Bifunctor (rmap)
 import Data.Functor.Compose (Compose(..), bihoistCompose)
 import Data.Functor.Mu (Mu(..))
 import Data.Functor.Mu as Mu
-import Matryoshka (hylo, topDownCata)
+import Matryoshka (cata, hylo, topDownCata)
 import Data.Maybe (Maybe(..), maybe)
 import Data.Traversable (traverse)
 import Data.Tuple (Tuple(..))
@@ -131,13 +131,13 @@ eval = case _ of
   t ->
     t
 
-type Term' = Mu AnnTermF
+type Term' = Mu TermF'
 
-type AnnTermF = Compose AnnF TermF
+{-- type AnnTermF = Compose AnnF TermF --}
 
-data AnnF a = AnnF a Ann'
+{-- data AnnF a = AnnF a Ann' --}
 
-derive instance functorAnnF :: Functor AnnF
+{-- derive instance functorAnnF :: Functor AnnF --}
 
 type Ann' = { id :: String }
 
@@ -148,39 +148,38 @@ data TermF t
 
 derive instance functorTermF :: Functor TermF
 
-{-- shift :: Int -> Term' -> Term' --}
-{-- shift inc term = topDownCata go 0 term --}
-{--   where --}
-{--   go c t = case (Mu.unroll t) of --}
-{--     Compose (AnnF (Var { varName, index }) ann) -> --}
-{--       if index >= c --}
-{--         then Tuple c (Mu.roll (Compose (AnnF (Var {varName, index: index + inc}) ann))) --}
-{--         else Tuple c (Mu.roll (Compose (AnnF (Var {varName, index}) ann))) --}
-{--     fn@(Compose (AnnF (Fn _) ann)) -> --}
-{--       Tuple (c + 1) (Mu.roll fn) --}
-{--     apply@(Compose (AnnF (Apply _ _) ann)) -> --}
-{--       Tuple c (Mu.roll apply) --}
+data TermF' t
+  = Var' { varName :: String, index :: Int } Ann'
+  | Fn' { paramName :: String, body :: t } Ann'
+  | Apply' t t Ann'
 
-{-- shift :: Int -> Term' -> Term' --}
-{-- shift inc term = topDownCata go2 0 term --}
-{--   where --}
-{--   {1-- morphism = rmap Mu.roll <<< (\c t -> go2 c (Mu.unroll t)) --1} --}
-{--   go2 c t = Tuple c (Mu.roll $ bihoistCompose identity ?foo (Mu.unroll t)) --}
+derive instance functorTermF' :: Functor TermF'
 
-{--   foo c t = case t of --}
-{--     Var _ -> --}
-{--       Tuple c t --}
-{--     Fn _ -> --}
-{--       Tuple c t --}
-{--     Apply _ _ -> --}
-{--       Tuple c t --}
-  
-{--   go c t = case (Mu.unroll t) of --}
-{--     Compose (AnnF (Var { varName, index }) ann) -> --}
-{--       if index >= c --}
-{--         then Tuple c (Mu.roll (Compose (AnnF (Var {varName, index: index + inc}) ann))) --}
-{--         else Tuple c (Mu.roll (Compose (AnnF (Var {varName, index}) ann))) --}
-{--     fn@(Compose (AnnF (Fn _) ann)) -> --}
-{--       Tuple (c + 1) (Mu.roll fn) --}
-{--     apply@(Compose (AnnF (Apply _ _) ann)) -> --}
-{--       Tuple c (Mu.roll apply) --}
+shift' :: Int -> Term' -> Term'
+shift' inc term = cata (map Mu.roll <<< go) term 0
+  where
+  go t c = case t of
+    Var' { varName, index } ann ->
+      if index >= c
+        then Var' {varName, index: index + inc} ann
+        else Var' {varName, index} ann
+    Fn' { paramName, body } ann ->
+      Fn' { paramName, body: body (c + 1)} ann
+    Apply' l r ann ->
+      Apply' (l c) (r c) ann
+
+substitute' :: Int -> Term' -> Term' -> Term'
+substitute' k sub term = cata (map Mu.roll <<< go) term 0
+  where
+  go t c = case t of
+    Var' { varName, index } ann ->
+      if index == k + c
+        then Mu.unroll (shift' c sub)
+        else Var' { varName, index } ann
+    Fn' { paramName, body } ann ->
+      Fn' { paramName, body: body (c + 1) } ann
+    Apply' l r ann ->
+      Apply' (l c) (r c) ann
+
+subTop' :: Term' -> Term' -> Term'
+subTop' sub term = shift' (-1) (substitute' 0 (shift' 1 sub) term)
