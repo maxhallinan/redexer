@@ -3,26 +3,33 @@ module Term
   , Term
   , TermF(..)
   , TermType(..)
+  , eval
   , isTermType
+  , shift
   , showTerm
   , typeOf
   ) where
 
 import Prelude
+
+import Control.Monad.Free (Free)
+import Control.Monad.Free (Free)
 import Data.Array as Array
+import Data.Bifunctor (rmap)
+import Data.Functor.Compose (Compose(..), bihoistCompose)
+import Data.Functor.Mu (Mu(..))
+import Data.Functor.Mu as Mu
+import Matryoshka (hylo, topDownCata)
 import Data.Maybe (Maybe(..), maybe)
+import Data.Traversable (traverse)
+import Data.Tuple (Tuple(..))
 
-type Term = Annotated { id :: String } TermF
+type Term = Annotated TermF
 
-data Annotated a f = Ann a (f (Annotated a f))
+data Annotated f = Ann { id :: String } (f (Annotated f))
 
-unAnn :: forall a f. Annotated a f -> f (Annotated a f)
+unAnn :: forall f. Annotated f -> f (Annotated f)
 unAnn (Ann _ f) = f
-
-data TermF t
-  = Var { varName :: String, index :: Int }
-  | Fn { paramName :: String, body :: t }
-  | Apply t t
 
 instance eqTermF :: Eq t => Eq (TermF t) where
   eq (Var v1) (Var v2) = v1.index == v2.index
@@ -35,34 +42,42 @@ type Context = Array String
 showTerm :: Term -> String
 showTerm = go []
   where 
-    go ctx term = case unAnn term of
-      Var { varName, index } ->
-        indexToName ctx { name: varName, index }
-      Fn { paramName, body } ->
-        let
-          fresh = pickFreshName ctx paramName
-        in
-        "(λ" <> fresh.name <> "." <> go fresh.ctx body <> ")"
-      Apply left right ->
-        "(" <> go ctx left <> " " <> go ctx right <> ")"
+  go ctx term = case unAnn term of
+    Var { varName, index } ->
+      indexToName ctx { name: varName, index }
+    Fn { paramName, body } ->
+      let
+        fresh = pickFreshName ctx paramName
+      in
+      "(λ" <> fresh.name <> "." <> go fresh.ctx body <> ")"
+    Apply left right ->
+      "(" <> go ctx left <> " " <> go ctx right <> ")"
 
 indexToName :: Context -> { name :: String, index :: Int } -> String
 indexToName ctx { name, index } = 
   let
-    idIndex = (Array.length ctx) - index - 1
+    isFree = index >= Array.length ctx
+    isFresh = Array.findIndex (_ == name) ctx == Nothing
   in
-  maybe name identity (Array.index ctx idIndex)
+  if isFree || isFresh
+    then 
+      if isFresh
+        then name
+        else name <> show index
+      else 
+        maybe name identity (Array.index ctx (Array.length ctx - index - 1))
 
 pickFreshName :: Context -> String -> { ctx :: Context, name :: String }
 pickFreshName ctx name = go 0 name
-  where go count n = 
-          if Array.elemIndex n ctx == Nothing
-            then { ctx: Array.snoc ctx n, name: n }
-            else 
-              let
-                c = count + 1
-              in
-              go c (n <> show c)
+  where 
+  go count n = 
+    if Array.elemIndex n ctx == Nothing
+      then { ctx: Array.snoc ctx n, name: n }
+      else 
+        let
+          c = count + 1
+        in
+        go c (n <> show c)
 
 data TermType = V | F | A
 derive instance eqTermType :: Eq TermType
@@ -75,3 +90,97 @@ typeOf t = case unAnn t of
 
 isTermType :: TermType -> Term -> Boolean
 isTermType termType term = typeOf term == termType
+
+shift :: Int -> Term -> Term
+shift inc term = go 0 term
+  where
+  go c t = case t of
+    Ann ann (Var { varName, index }) ->
+      if index >= c
+        then Ann ann (Var { varName, index: index + inc })
+        else Ann ann (Var { varName, index })
+    Ann ann (Fn { paramName, body }) ->
+      Ann ann (Fn { paramName, body: go (c + 1) body })
+    Ann ann (Apply l r) ->
+      Ann ann (Apply (go c l) (go c r))
+
+substitute :: Int -> Term -> Term -> Term
+substitute k sub term = go 0 term
+  where 
+  go c t = case t of
+    Ann ann (Var { varName, index }) ->
+      if index == k + c
+        then shift c sub
+        else Ann ann (Var { varName, index })
+    Ann ann (Fn { paramName, body }) ->
+      Ann ann (Fn { paramName, body: go (c + 1) body })
+    Ann ann (Apply l r) ->
+      Ann ann (Apply (go c l) (go c r))
+
+subTop :: Term -> Term -> Term
+subTop sub term = shift (-1) (substitute 0 (shift 1 sub) term)
+
+eval :: Term -> Term
+eval = case _ of
+  Ann _ (Apply (Ann _ (Fn { body })) arg) ->
+    subTop arg body
+  Ann ann (Apply t1 t2) ->
+    Ann ann (Apply (eval t1) (eval t2))
+  Ann ann (Fn { paramName, body }) ->
+    Ann ann (Fn { paramName, body: eval body })
+  t ->
+    t
+
+type Term' = Mu AnnTermF
+
+type AnnTermF = Compose AnnF TermF
+
+data AnnF a = AnnF a Ann'
+
+derive instance functorAnnF :: Functor AnnF
+
+type Ann' = { id :: String }
+
+data TermF t
+  = Var { varName :: String, index :: Int }
+  | Fn { paramName :: String, body :: t }
+  | Apply t t
+
+derive instance functorTermF :: Functor TermF
+
+{-- shift :: Int -> Term' -> Term' --}
+{-- shift inc term = topDownCata go 0 term --}
+{--   where --}
+{--   go c t = case (Mu.unroll t) of --}
+{--     Compose (AnnF (Var { varName, index }) ann) -> --}
+{--       if index >= c --}
+{--         then Tuple c (Mu.roll (Compose (AnnF (Var {varName, index: index + inc}) ann))) --}
+{--         else Tuple c (Mu.roll (Compose (AnnF (Var {varName, index}) ann))) --}
+{--     fn@(Compose (AnnF (Fn _) ann)) -> --}
+{--       Tuple (c + 1) (Mu.roll fn) --}
+{--     apply@(Compose (AnnF (Apply _ _) ann)) -> --}
+{--       Tuple c (Mu.roll apply) --}
+
+{-- shift :: Int -> Term' -> Term' --}
+{-- shift inc term = topDownCata go2 0 term --}
+{--   where --}
+{--   {1-- morphism = rmap Mu.roll <<< (\c t -> go2 c (Mu.unroll t)) --1} --}
+{--   go2 c t = Tuple c (Mu.roll $ bihoistCompose identity ?foo (Mu.unroll t)) --}
+
+{--   foo c t = case t of --}
+{--     Var _ -> --}
+{--       Tuple c t --}
+{--     Fn _ -> --}
+{--       Tuple c t --}
+{--     Apply _ _ -> --}
+{--       Tuple c t --}
+  
+{--   go c t = case (Mu.unroll t) of --}
+{--     Compose (AnnF (Var { varName, index }) ann) -> --}
+{--       if index >= c --}
+{--         then Tuple c (Mu.roll (Compose (AnnF (Var {varName, index: index + inc}) ann))) --}
+{--         else Tuple c (Mu.roll (Compose (AnnF (Var {varName, index}) ann))) --}
+{--     fn@(Compose (AnnF (Fn _) ann)) -> --}
+{--       Tuple (c + 1) (Mu.roll fn) --}
+{--     apply@(Compose (AnnF (Apply _ _) ann)) -> --}
+{--       Tuple c (Mu.roll apply) --}
