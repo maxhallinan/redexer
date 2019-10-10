@@ -1,7 +1,7 @@
 module Component.Stepper (component) where
 
 import Prelude
-import Component.Node as Node
+import Component.Step as Step
 import Component.Util as U
 import Control.Alt ((<|>))
 import Data.Array (last, mapWithIndex, snoc)
@@ -47,7 +47,7 @@ data Action
   | EditorClosed
 
 type ChildSlots
-  = ( nodeSlot :: Node.Slot SlotIndex )
+  = ( nodeSlot :: Step.Slot SlotIndex )
 
 type SlotIndex
   = Int
@@ -87,7 +87,7 @@ render state =
 renderLine :: State -> Int -> Term -> H.ComponentHTML Action ChildSlots Aff
 renderLine state@{ currentNode, lines, reductionOrder, reductions } i ast =
   let
-    linePos = Node.toLinePos { current: i, total: length lines }
+    linePos = Step.toLinePos { current: i, total: length lines }
 
     nodeInput =
       { ast
@@ -99,20 +99,20 @@ renderLine state@{ currentNode, lines, reductionOrder, reductions } i ast =
 
     cn =
       [ { name: "line", cond: true }
-      , { name: "last", cond: linePos == Node.Last || linePos == Node.Only }
+      , { name: "last", cond: linePos == Step.Last || linePos == Step.Only }
       ]
   in
     HH.div
       [ U.classNames_ cn ]
-      [ HH.slot _nodeSlot i Node.component nodeInput handleMessage ]
+      [ HH.slot _nodeSlot i Step.component nodeInput handleMessage ]
 
-getNodeFocus :: { lineIndex :: Int } -> State -> Maybe Node.Focus
+getNodeFocus :: { lineIndex :: Int } -> State -> Maybe Step.Focus
 getNodeFocus { lineIndex } state =
   getSuccessFocus lineIndex state
     <|> getTodoFocus lineIndex state
     <|> getDoneFocus lineIndex state
 
-getSuccessFocus :: Int -> State -> Maybe Node.Focus
+getSuccessFocus :: Int -> State -> Maybe Step.Focus
 getSuccessFocus lineIndex state = do
   currentNode <- state.currentNode
   if currentNode.lineIndex == lineIndex then do
@@ -136,9 +136,9 @@ getSuccessFocus lineIndex state = do
     else
       Nothing
   where
-  makeFocus nodeId = { nodeId, highlight: Node.Success }
+  makeFocus nodeId = { nodeId, highlight: Step.Success }
 
-getTodoFocus :: Int -> State -> Maybe Node.Focus
+getTodoFocus :: Int -> State -> Maybe Step.Focus
 getTodoFocus lineIndex state = do
   currentNode <- state.currentNode
   line <- Array.index state.lines lineIndex
@@ -151,21 +151,21 @@ getTodoFocus lineIndex state = do
   else
     Nothing
   where
-  makeFocus nodeId = { nodeId, highlight: Node.Todo }
+  makeFocus nodeId = { nodeId, highlight: Step.Todo }
 
-getDoneFocus :: Int -> State -> Maybe Node.Focus
+getDoneFocus :: Int -> State -> Maybe Step.Focus
 getDoneFocus lineIndex state = do
   nodeId <- Array.index state.reductionOrder lineIndex
-  pure { nodeId, highlight: Node.Done }
+  pure { nodeId, highlight: Step.Done }
 
-handleMessage :: Node.Message -> Maybe Action
+handleMessage :: Step.Message -> Maybe Action
 handleMessage = case _ of
-  Node.Applied id -> Just (Applied id)
-  Node.EditorOpened { lineIndex } -> Just (EditorOpened { lineIndex })
-  Node.EditorClosed -> Just EditorClosed
-  Node.NewAst { ast } -> Just (NewAst { ast })
-  Node.NodeHoverOn currentNode -> Just $ CurrentNodeChanged (Just currentNode)
-  Node.NodeHoverOff -> Just $ CurrentNodeChanged Nothing
+  Step.Applied id -> Just (Applied id)
+  Step.EditorOpened { lineIndex } -> Just (EditorOpened { lineIndex })
+  Step.EditorClosed -> Just EditorClosed
+  Step.NewAst { ast } -> Just (NewAst { ast })
+  Step.NodeHoverOn currentNode -> Just $ CurrentNodeChanged (Just currentNode)
+  Step.NodeHoverOff -> Just $ CurrentNodeChanged Nothing
 
 handleAction :: forall o. Action -> H.HalogenM State Action ChildSlots o Aff Unit
 handleAction action = case action of
@@ -177,10 +177,10 @@ handleAction action = case action of
   CurrentNodeChanged currentNode -> handleCurrentNode currentNode
 
 handleEditorOpened :: forall o. Int -> H.HalogenM State Action ChildSlots o Aff Unit
-handleEditorOpened lineIndex = void $ H.queryAll _nodeSlot (H.tell $ Node.Disable { lineIndex })
+handleEditorOpened lineIndex = void $ H.queryAll _nodeSlot (H.tell $ Step.Disable { lineIndex })
 
 handleEditorClosed :: forall o. H.HalogenM State Action ChildSlots o Aff Unit
-handleEditorClosed = void $ H.queryAll _nodeSlot (H.tell Node.Enable)
+handleEditorClosed = void $ H.queryAll _nodeSlot (H.tell Step.Enable)
 
 handleCurrentNode :: forall o. Maybe CurrentNode -> H.HalogenM State Action ChildSlots o Aff Unit
 handleCurrentNode currentNode = H.modify_ \s -> s { currentNode = currentNode }

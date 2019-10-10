@@ -1,4 +1,4 @@
-module Component.Node
+module Component.Step
   ( Slot
   , Input
   , LinePos(..)
