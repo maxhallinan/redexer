@@ -116,12 +116,12 @@ toEditorKey = case _ of
   _ -> Nothing
 
 data Message
-  = Applied String
+  = Reduced String
   | EditorOpened { stepIndex :: Int }
   | EditorClosed
   | NewTerm { term :: Term }
-  | TermHoverOn { stepIndex :: Int, termId :: String }
-  | TermHoverOff
+  | TermFocusOn { stepIndex :: Int, termId :: String }
+  | TermFocusOff
 
 data Query a
   = Disable { stepIndex :: Int } a
@@ -501,18 +501,18 @@ handleInputUpdated i =
 handleApplyClicked :: String -> MouseEvent -> H.HalogenM State Action ChildSlots Message Aff Unit
 handleApplyClicked termId event = do
   stopProp event
-  H.raise $ Applied termId
+  H.raise $ Reduced termId
 
 handleTermMouseEnter :: String -> MouseEvent -> H.HalogenM State Action ChildSlots Message Aff Unit
 handleTermMouseEnter termId event = do
   stopProp event
   { stepIndex } <- H.get
-  H.raise $ TermHoverOn { stepIndex, termId }
+  H.raise $ TermFocusOn { stepIndex, termId }
 
 handleTermMouseLeave :: String -> MouseEvent -> H.HalogenM State Action ChildSlots Message Aff Unit
 handleTermMouseLeave termId event = do
   stopProp event
-  H.raise TermHoverOff
+  H.raise TermFocusOff
 
 handleEditBtnClicked :: MouseEvent -> H.HalogenM State Action ChildSlots Message Aff Unit
 handleEditBtnClicked event = do

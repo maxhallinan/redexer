@@ -40,7 +40,7 @@ type CurrentTerm
 
 data Action
   = Initialize
-  | Applied String
+  | Reduced String
   | NewTerm { term :: Term }
   | CurrentTermChanged (Maybe CurrentTerm)
   | EditorOpened { stepIndex :: Int }
@@ -160,17 +160,17 @@ getDoneFocus stepIndex state = do
 
 handleMessage :: Step.Message -> Maybe Action
 handleMessage = case _ of
-  Step.Applied id -> Just (Applied id)
+  Step.Reduced id -> Just (Reduced id)
   Step.EditorOpened { stepIndex } -> Just (EditorOpened { stepIndex })
   Step.EditorClosed -> Just EditorClosed
   Step.NewTerm { term } -> Just (NewTerm { term })
-  Step.TermHoverOn currentTerm -> Just $ CurrentTermChanged (Just currentTerm)
-  Step.TermHoverOff -> Just $ CurrentTermChanged Nothing
+  Step.TermFocusOn currentTerm -> Just $ CurrentTermChanged (Just currentTerm)
+  Step.TermFocusOff -> Just $ CurrentTermChanged Nothing
 
 handleAction :: forall o. Action -> H.HalogenM State Action ChildSlots o Aff Unit
 handleAction action = case action of
   Initialize -> handleInitialize
-  Applied id -> handleApplied id
+  Reduced id -> handleReduced id
   EditorOpened { stepIndex } -> handleEditorOpened stepIndex
   EditorClosed -> handleEditorClosed
   NewTerm { term } -> handleNewTerm term
@@ -188,8 +188,8 @@ handleCurrentTerm currentTerm = H.modify_ \s -> s { currentTerm = currentTerm }
 handleApplyHoverOff :: forall o. H.HalogenM State Action ChildSlots o Aff Unit
 handleApplyHoverOff = H.modify_ \s -> s { currentTerm = Nothing }
 
-handleApplied :: forall o. String -> H.HalogenM State Action ChildSlots o Aff Unit
-handleApplied termId = do
+handleReduced :: forall o. String -> H.HalogenM State Action ChildSlots o Aff Unit
+handleReduced termId = do
   newStep <- reduceLastStep
   maybe return updateState newStep
   where
