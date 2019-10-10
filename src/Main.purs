@@ -1,7 +1,6 @@
 module Main where
 
 import Prelude
-
 import Component.Stepper as Stepper
 import Data.Maybe (Maybe(..))
 import Data.String.Common (trim)
@@ -29,21 +28,21 @@ getDocument = window >>= document
 getStepperNodes :: HTMLDocument -> Effect (Array Node)
 getStepperNodes =
   toArray
-  <=< querySelectorAll (QuerySelector ".stepper")
-  <<< toParentNode
+    <=< querySelectorAll (QuerySelector ".stepper")
+    <<< toParentNode
 
 initSteppers :: Array Node -> Effect Unit
 initSteppers = void <<< traverse init
-  where init node =
-          case fromNode node of
-            Nothing ->
-              pure unit
-            Just element -> do
-              defaultContent <- map trim (textContent node)
-              removeChildren node
-              HA.runHalogenAff $ runUI Stepper.component { defaultContent } element
+  where
+  init node = case fromNode node of
+    Nothing -> pure unit
+    Just element -> do
+      defaultContent <- map trim (textContent node)
+      removeChildren node
+      HA.runHalogenAff $ runUI Stepper.component { defaultContent } element
 
 removeChildren :: Node -> Effect Unit
-removeChildren node = void do
-  childNodeArray <- childNodes node >>= toArray
-  traverse (flip removeChild node) childNodeArray
+removeChildren node =
+  void do
+    childNodeArray <- childNodes node >>= toArray
+    traverse (flip removeChild node) childNodeArray
