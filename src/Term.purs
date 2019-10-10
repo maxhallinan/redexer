@@ -2,7 +2,7 @@ module Term
   ( Ann
   , Context
   , Term(..)
-  , closestRedexAncestor
+  , nearestRedexAncestor
   , emptyAnn
   , findTerm
   , genIds
@@ -12,7 +12,7 @@ module Term
   , pickFreshName
   , reduce
   , step
-  , uuid
+  , getUuid
   ) where
 
 import Prelude
@@ -195,40 +195,28 @@ isRedex = case _ of
   _ -> false
 
 findTerm :: String -> Term -> Maybe Term
-findTerm uuid term = case term of
-  Var _ ann ->
-    if ann.uuid == uuid then
-      Just term
-    else
-      Nothing
-  Fn { body } ann ->
-    if ann.uuid == uuid then
-      Just term
-    else
-      findTerm uuid body
-  Apply l r ann ->
-    if ann.uuid == uuid then
-      Just term
-    else
-      (findTerm uuid l) <|> (findTerm uuid r)
+findTerm uuid term =
+  if getUuid term == uuid then
+    Just term
+  else
+    go term
+  where
+  go = case _ of
+    Var _ ann -> Nothing
+    Fn { body } ann -> findTerm uuid body
+    Apply l r ann -> findTerm uuid l <|> findTerm uuid r
 
 replaceTerm :: String -> Term -> Term -> Term
-replaceTerm uuid new term = case term of
-  Var var ann ->
-    if uuid == ann.uuid then
-      new
-    else
-      Var var ann
-  Fn { paramName, body } ann ->
-    if uuid == ann.uuid then
-      new
-    else
-      Fn { paramName, body: replaceTerm uuid new body } ann
-  Apply l r ann ->
-    if uuid == ann.uuid then
-      new
-    else
-      Apply (replaceTerm uuid new l) (replaceTerm uuid new r) ann
+replaceTerm uuid new term =
+  if getUuid term == uuid then
+    new
+  else
+    go term
+  where
+  go = case _ of
+    Var var ann -> Var var ann
+    Fn { paramName, body } ann -> Fn { paramName, body: replaceTerm uuid new body } ann
+    Apply l r ann -> Apply (replaceTerm uuid new l) (replaceTerm uuid new r) ann
 
 isDescendantOf :: String -> Term -> Boolean
 isDescendantOf uuid term = case term of
@@ -236,28 +224,20 @@ isDescendantOf uuid term = case term of
   Fn { body } ann -> uuid == ann.uuid || isDescendantOf uuid body
   Apply l r ann -> uuid == ann.uuid || (isDescendantOf uuid l) || (isDescendantOf uuid r)
 
-closestRedexAncestor :: String -> Term -> Maybe Term
-closestRedexAncestor uuid term =
+nearestRedexAncestor :: String -> Term -> Maybe Term
+nearestRedexAncestor uuid term =
   if isRedex term then
     Just term
   else
     go Nothing term
   where
-  go closest subterm = case subterm of
-    Var _ ann ->
-      if uuid == ann.uuid then
-        closest
-      else
-        Nothing
-    Fn { body } ann ->
-      if uuid == ann.uuid then
-        closest
-      else
-        go closest body
-    Apply l r ann ->
-      if uuid == ann.uuid then
-        closest
-      else
+  go closest subterm =
+    if getUuid subterm == uuid then
+      closest
+    else case subterm of
+      Var _ ann -> Nothing
+      Fn { body } ann -> go closest body
+      Apply l r ann ->
         let
           nextClosest =
             if isRedex subterm then
@@ -267,8 +247,8 @@ closestRedexAncestor uuid term =
         in
           (go nextClosest l) <|> (go nextClosest r)
 
-uuid :: Term -> String
-uuid = case _ of
+getUuid :: Term -> String
+getUuid = case _ of
   Var _ ann -> ann.uuid
   Fn _ ann -> ann.uuid
   Apply _ _ ann -> ann.uuid

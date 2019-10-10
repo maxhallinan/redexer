@@ -260,7 +260,7 @@ renderEditBtn =
 renderReadTerm :: Term.Context -> State -> H.ComponentHTML Action ChildSlots Aff
 renderReadTerm ctx state =
   let
-    uuid = Term.uuid state.term
+    uuid = Term.getUuid state.term
 
     handleMouseEnter event = Just $ TermMouseEnter uuid event
 
@@ -306,7 +306,7 @@ renderReadTermBody ctx state = case state.term of
 termClassNames :: State -> Array String
 termClassNames { term, focus } = case focus of
   Just { termId, highlight } ->
-    if termId == Term.uuid term then
+    if termId == Term.getUuid term then
       Array.cons (highlightClassName highlight) base
     else
       base
@@ -575,7 +575,7 @@ toPendingContent state = case state.interaction of
   Write { pendingContent } -> Just pendingContent
 
 toEditorId :: State -> String
-toEditorId { term, stepIndex } = show stepIndex <> Term.uuid term
+toEditorId { term, stepIndex } = show stepIndex <> Term.getUuid term
 
 deleteEditorContent :: Node -> Effect Unit
 deleteEditorContent = EU.runEffectFn1 _deleteEditorContent

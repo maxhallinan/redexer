@@ -143,11 +143,11 @@ getTodoFocus stepIndex state = do
   currentTerm <- state.currentTerm
   step <- Array.index state.steps stepIndex
   term <- Term.findTerm currentTerm.termId step
-  nearestRedex <- Term.closestRedexAncestor (Term.uuid term) step
+  nearestRedex <- Term.nearestRedexAncestor (Term.getUuid term) step
   let
     isReduced = isJust $ Array.index state.reductionOrder stepIndex
   if stepIndex == currentTerm.stepIndex && not isReduced then
-    pure $ makeFocus (Term.uuid nearestRedex)
+    pure $ makeFocus (Term.getUuid nearestRedex)
   else
     Nothing
   where
@@ -203,7 +203,7 @@ handleApplied termId = do
         { steps = snoc s.steps term
         , currentTerm = Just $ { stepIndex: (length s.steps) - 1, termId }
         , reductionOrder = snoc s.reductionOrder termId
-        , reductions = Map.insert termId (Term.uuid step) s.reductions
+        , reductions = Map.insert termId (Term.getUuid step) s.reductions
         }
 
 handleInitialize :: forall o. H.HalogenM State Action ChildSlots o Aff Unit
