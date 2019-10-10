@@ -1,12 +1,10 @@
 module Component.Stepper (component) where
 
 import Prelude
-import Debug.Trace (spy)
 
 import Component.Node as Node
 import Component.Util as U
 import Control.Alt ((<|>))
-import Core as Core
 import Data.Array (last, mapWithIndex, snoc)
 import Data.Array as Array
 import Data.Either (Either(..))
@@ -20,6 +18,8 @@ import Effect.Class (liftEffect)
 import Halogen as H
 import Halogen.HTML as HH
 import Parse as Parse
+import Term (Term)
+import Term as Term
 
 type Input =
   { defaultContent :: String
@@ -28,7 +28,7 @@ type Input =
 type State =
   { currentNode :: Maybe CurrentNode
   , defaultContent :: String
-  , lines :: Array Core.Node
+  , lines :: Array Term
   , parseErr :: Maybe Parse.ParseErr
   , reductionOrder :: Array String
   , reductions :: Map String String
@@ -42,7 +42,7 @@ type CurrentNode =
 data Action
   = Initialize
   | Applied String
-  | NewAst { ast :: Core.Node }
+  | NewAst { ast :: Term }
   | CurrentNodeChanged (Maybe CurrentNode)
   | EditorOpened { lineIndex :: Int }
   | EditorClosed
@@ -80,7 +80,7 @@ render state =
     [ U.className "stepper" ]
     (mapWithIndex (renderLine state) state.lines)
 
-renderLine :: State -> Int -> Core.Node -> H.ComponentHTML Action ChildSlots Aff
+renderLine :: State -> Int -> Term -> H.ComponentHTML Action ChildSlots Aff
 renderLine state@{ currentNode, lines, reductionOrder, reductions } i ast =
   let
       linePos = Node.toLinePos { current: i, total: length lines }
@@ -114,17 +114,17 @@ getSuccessFocus lineIndex state = do
     then do
       line <- Array.index state.lines lineIndex
       reducedId <- Array.index state.reductionOrder lineIndex
-      reducedNode <- Core.findNode reducedId line
-      if Core.isDescendantOf currentNode.nodeId reducedNode
+      reducedNode <- Term.findTerm reducedId line
+      if Term.isDescendantOf currentNode.nodeId reducedNode
         then pure $ makeFocus reducedId
         else Nothing
     else if currentNode.lineIndex + 1 == lineIndex
       then do
         line <- Array.index state.lines currentNode.lineIndex
         reducedId <- Array.index state.reductionOrder currentNode.lineIndex
-        reducedNode <- Core.findNode reducedId line
+        reducedNode <- Term.findTerm reducedId line
         successId <- Map.lookup reducedId state.reductions
-        if Core.isDescendantOf currentNode.nodeId reducedNode
+        if Term.isDescendantOf currentNode.nodeId reducedNode
           then pure $ makeFocus successId
           else Nothing
       else Nothing
@@ -134,11 +134,11 @@ getTodoFocus :: Int -> State -> Maybe Node.Focus
 getTodoFocus lineIndex state = do
   currentNode <- state.currentNode
   line <- Array.index state.lines lineIndex
-  node <- Core.findNode currentNode.nodeId line
-  applyNode <- Core.closestReduceableAncestor node line
+  node <- Term.findTerm currentNode.nodeId line
+  applyNode <- Term.closestRedexAncestor (Term.uuid node) line
   let isReduced = isJust $ Array.index state.reductionOrder lineIndex
   if lineIndex == currentNode.lineIndex && not isReduced
-    then pure $ makeFocus applyNode.id
+    then pure $ makeFocus (Term.uuid applyNode)
     else Nothing
   where makeFocus nodeId = { nodeId, highlight: Node.Todo }
 
@@ -154,9 +154,6 @@ handleMessage = case _ of
   Node.EditorOpened { lineIndex } ->
     Just (EditorOpened { lineIndex })
   Node.EditorClosed ->
-    let
-        _ = spy "EditorClosed" ""
-    in
     Just EditorClosed
   Node.NewAst { ast } ->
     Just (NewAst { ast })
@@ -201,12 +198,12 @@ handleApplied nodeId = do
   maybe return updateState newLine
   where
     return = pure unit
-    reduceLastLine = H.gets $ _.lines >>> last >=> Core.betaReduction nodeId
-    updateState { node, tree } = do
-       H.modify_ \s -> s { lines = snoc s.lines tree
+    reduceLastLine = H.gets $ _.lines >>> last >=> Term.reduce nodeId
+    updateState { step, term } = do
+      H.modify_ \s -> s { lines = snoc s.lines term
                          , currentNode = Just $ { lineIndex: (length s.lines) - 1, nodeId }
                          , reductionOrder = snoc s.reductionOrder nodeId
-                         , reductions = Map.insert nodeId node.id s.reductions
+                         , reductions = Map.insert nodeId (Term.uuid step) s.reductions
                          }
 
 handleInitialize :: forall o. H.HalogenM State Action ChildSlots o Aff Unit
@@ -218,9 +215,9 @@ handleInitialize = do
     Right firstLine -> do
       l <- genIds firstLine
       H.modify_ \s -> s { lines = pure l }
-  where genIds = liftEffect <<< Core.genIds
+  where genIds = liftEffect <<< Term.genIds
 
-handleNewAst :: forall o. Core.Node -> H.HalogenM State Action ChildSlots o Aff Unit
+handleNewAst :: forall o. Term -> H.HalogenM State Action ChildSlots o Aff Unit
 handleNewAst ast = do
   l <- genIds ast
   H.modify_ \state -> state{ currentNode = Nothing
@@ -229,4 +226,4 @@ handleNewAst ast = do
                            , reductionOrder = mempty :: Array String
                            , reductions = mempty :: Map String String
                            }
-  where genIds = liftEffect <<< Core.genIds
+  where genIds = liftEffect <<< Term.genIds

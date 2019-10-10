@@ -1,17 +1,25 @@
 module Term
   ( Ann
+  , Context
   , Term(..)
+  , closestRedexAncestor
   , emptyAnn
+  , findTerm
   , genIds
+  , indexToName
+  , isDescendantOf
   , isRedex
-  , reduceOneStep
-  , smallStep
+  , pickFreshName
+  , reduce
+  , step
+  , uuid
   ) where
 
 import Prelude
 
+import Control.Alt ((<|>))
 import Data.Array as Array
-import Data.Maybe (isNothing, maybe)
+import Data.Maybe (Maybe(..), isNothing, maybe)
 import Data.UUID as U
 import Effect (Effect)
 
@@ -28,14 +36,14 @@ type Ann = {uuid :: String}
 emptyAnn :: Ann
 emptyAnn = {uuid: ""}
 
-smallStep :: Term -> Term
-smallStep = case _ of
+step :: Term -> Term
+step = case _ of
   Apply (Fn {body} _) arg _ ->
     subOuter arg body
   Apply t1 t2 ann ->
-    Apply (smallStep t1) (smallStep t2) ann
+    Apply (step t1) (step t2) ann
   Fn {paramName, body} ann ->
-    Fn {paramName, body: smallStep body} ann
+    Fn {paramName, body: step body} ann
   t ->
     t
 
@@ -128,7 +136,7 @@ pickFreshName ctx name = go 0 name
     if isNothing $ Array.elemIndex n ctx
       then {ctx: Array.snoc ctx n, name: n}
       else let c = count + 1 in
-      go c (n <> show c)
+      go c (name <> show c)
 
 genIds :: Term -> Effect Term
 genIds = case _ of
@@ -149,8 +157,11 @@ genIds = case _ of
     uuid <- U.toString <$> U.genUUID
     pure ann{uuid = uuid}
 
-reduceOneStep :: String -> Term -> Term
-reduceOneStep uuid term = reduceBy smallStep uuid term
+reduce :: String -> Term -> Maybe {step :: Term, term :: Term}
+reduce uuid term =
+  findTerm uuid term
+  # map step
+  # map (\nextStep -> {step: nextStep, term: replaceTerm uuid nextStep term})
 
 reduceBy :: (Term -> Term) -> String -> Term -> Term
 reduceBy reducer uuid term = case term of
@@ -181,7 +192,81 @@ toAnn = case _ of
 
 isRedex :: Term -> Boolean
 isRedex = case _ of
-  Apply _ _ _ ->
+  Apply (Fn _ _) _ _ ->
     true
   _ ->
     false
+
+findTerm :: String -> Term -> Maybe Term
+findTerm uuid term = case term of
+  Var _ ann ->
+    if ann.uuid == uuid
+      then Just term
+      else Nothing
+  Fn {body} ann ->
+    if ann.uuid == uuid
+      then Just term
+      else findTerm uuid body
+  Apply l r ann ->
+    if ann.uuid == uuid
+      then Just term
+      else (findTerm uuid l) <|> (findTerm uuid r)
+
+replaceTerm :: String -> Term -> Term -> Term
+replaceTerm uuid new term = case term of
+  Var var ann ->
+    if uuid == ann.uuid
+      then new
+      else Var var ann
+  Fn {paramName, body} ann ->
+    if uuid == ann.uuid
+      then new
+      else Fn {paramName, body: replaceTerm uuid new body} ann
+  Apply l r ann ->
+    if uuid == ann.uuid
+      then new
+      else Apply (replaceTerm uuid new l) (replaceTerm uuid new r) ann
+
+isDescendantOf :: String -> Term -> Boolean
+isDescendantOf uuid term = case term of
+  Var _ ann ->
+    uuid == ann.uuid
+  Fn {body} ann ->
+    uuid == ann.uuid || isDescendantOf uuid body
+  Apply l r ann ->
+    uuid == ann.uuid || (isDescendantOf uuid l) || (isDescendantOf uuid r)
+
+closestRedexAncestor :: String -> Term -> Maybe Term
+closestRedexAncestor uuid term = 
+  if isRedex term
+    then Just term
+    else go Nothing term
+  where
+  go closest subterm = case subterm of
+    Var _ ann ->
+      if uuid == ann.uuid
+        then closest
+        else Nothing
+    Fn {body} ann ->
+      if uuid == ann.uuid
+        then closest
+        else go closest body
+    Apply l r ann ->
+      if uuid == ann.uuid
+        then closest
+        else let 
+          nextClosest = 
+            if isRedex subterm 
+              then Just subterm 
+              else closest 
+        in
+        (go nextClosest l) <|> (go nextClosest r)
+
+uuid :: Term -> String
+uuid = case _ of
+  Var _ ann ->
+    ann.uuid
+  Fn _ ann ->
+    ann.uuid
+  Apply _ _ ann ->
+    ann.uuid

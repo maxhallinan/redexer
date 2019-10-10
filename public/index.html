@@ -27,7 +27,8 @@ Hover on a <span class="done">reduced term</span> to find the <span class="succe
       <div class="stepper">
         <code>
           <pre>
-((λx.λy.λs.λz.((x s) ((y s) z)) λs.λz.(s z)) λs.λz.(s (s z)))
+<!-- Addition of Church numerals 1 and 2. -->
+(λx.λy.λs.λz.(x s) (y s z)) (λs.λz.s z) (λs.λz.s (s z))
           </pre>
         </code>
       </div>

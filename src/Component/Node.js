@@ -3,7 +3,7 @@
 exports._deleteEditorContent = function (node) {
   var selection = window.getSelection();
   node.innerHTML = "<br />";
-  selection.setPosition(node, 0); 
+  selection.setPosition(node, 0);
 };
 
 exports._markEditorErrPos = function (parts, node) {

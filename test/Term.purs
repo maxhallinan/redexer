@@ -4,15 +4,15 @@ import Prelude
 
 import Data.Either (Either(..))
 import Effect.Aff (Aff)
-import ParseTerm (parse)
-import Term (smallStep)
+import Parse (parse)
+import Term (step)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
 
 spec :: Spec Unit
 spec = do
   describe "Term" do
-    describe "Term.smallStep" do
+    describe "Term.step" do
       it "Does nothing when term is in normal form." $ do
         "x" `shouldStepTo` "x"
         "λx.x" `shouldStepTo` "(λx.x)"
@@ -27,6 +27,8 @@ spec = do
         "(λx.(λy.x y) z) y" `shouldStepTo` "((λy.(y1 y)) z)"
         "(λx.(λy.x y) z) λy.y" `shouldStepTo` "((λy.((λy1.y1) y)) z)"
         "(λx.(λy.λz.x y z) z) λy.y" `shouldStepTo` "((λy.(λz.(((λy1.y1) y) z))) z)"
+      it "Can be run repeatedly to find the term's normal form." do
+        "(λx.λy.λs.λz.(x s) (y s z)) (λs.λz.s z) (λs.λz.s (s z))" `hasNormalForm` "(λs.(λz.(s (s (s z)))))"
 
 shouldStepTo :: String -> String -> Aff Unit
 shouldStepTo input expected =
@@ -34,4 +36,20 @@ shouldStepTo input expected =
     Left err ->
       fail $ "Parsing \"" <> input <> "\" failed with " <> (show err)
     Right term ->
-      (show $ smallStep term) `shouldEqual` expected
+      (show $ step term) `shouldEqual` expected
+
+hasNormalForm :: String -> String -> Aff Unit
+hasNormalForm input expected =
+  case parse input of
+    Left err ->
+      fail $ "Parsing \"" <> input <> "\" failed with " <> (show err)
+    Right term ->
+      (show $ go term) `shouldEqual` expected
+  where
+  go x =
+    let
+      next = step x
+    in
+    if (show next) == (show x)
+      then x
+      else go next

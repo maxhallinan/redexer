@@ -10,10 +10,8 @@ module Component.Node ( Slot
   ) where
 
 import Prelude
-import Debug.Trace (spy)
 
 import Component.Util as Util
-import Core as Core
 import Data.Array as Array
 import Data.Either (Either(..))
 import Data.Foldable (traverse_)
@@ -31,6 +29,8 @@ import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
 import Halogen.Query.EventSource as ES
 import Parse as Parse
+import Term (Term(..))
+import Term as Term
 import Web.DOM.Node as Node
 import Web.Event.Event (Event, EventType(..), stopPropagation)
 import Web.Event.Event as Event
@@ -39,7 +39,7 @@ import Web.UIEvent.MouseEvent (MouseEvent, toEvent)
 import Web.UIEvent.KeyboardEvent as KeyboardEvent
 
 type Input =
-  { ast :: Core.Node
+  { ast :: Term
   , lineIndex :: Int
   , linePos :: LinePos
   , focus :: Maybe Focus
@@ -47,7 +47,7 @@ type Input =
   }
 
 type State =
-  { ast :: Core.Node
+  { ast :: Term
   , interaction :: Interaction
   , lineIndex :: Int
   , linePos :: LinePos
@@ -110,7 +110,7 @@ data Message
   = Applied String
   | EditorOpened { lineIndex :: Int }
   | EditorClosed
-  | NewAst { ast :: Core.Node }
+  | NewAst { ast :: Term }
   | NodeHoverOn { lineIndex :: Int, nodeId :: String }
   | NodeHoverOff
 
@@ -145,9 +145,6 @@ initState i =
 
 render :: State -> H.ComponentHTML Action ChildSlots Aff
 render state =
-  let
-    _ = spy "state" state
-  in
   case state.linePos of
     First ->
       renderEditableLine state
@@ -162,7 +159,7 @@ renderReadOnlyLine :: State -> H.ComponentHTML Action ChildSlots Aff
 renderReadOnlyLine state =
   HH.div
     []
-    [ renderReadNode state
+    [ renderReadNode mempty state
     ]
 
 renderEditableLine :: State -> H.ComponentHTML Action ChildSlots Aff
@@ -171,12 +168,12 @@ renderEditableLine state =
     Disabled ->
       HH.div
         []
-        [ renderReadNode state
+        [ renderReadNode mempty state
         ]
     Read ->
       HH.div
         []
-        [ renderReadNode state
+        [ renderReadNode mempty state
         , renderEditBtn
         ]
     Write writeState ->
@@ -200,7 +197,7 @@ renderWriteNode { parseErr } state =
     ]
     [ HH.text ""
     ]
-  where astText = show state.ast.expr
+  where astText = show state.ast
         errPos = map Parse.errPos parseErr
         handleKeyDown event =
           let
@@ -245,27 +242,29 @@ renderEditBtn =
     ]
     [ HH.text "edit" ]
 
-renderReadNode :: State -> H.ComponentHTML Action ChildSlots Aff
-renderReadNode state =
+renderReadNode :: Term.Context -> State -> H.ComponentHTML Action ChildSlots Aff
+renderReadNode ctx state =
   let
+    uuid = Term.uuid state.ast
+
     handleMouseEnter event =
-      Just $ NodeMouseEnter state.ast.id event
+      Just $ NodeMouseEnter uuid event
 
     handleMouseLeave event =
-      Just $ NodeMouseLeave state.ast.id event
+      Just $ NodeMouseLeave uuid event
 
     handleClick event =
-      if Core.isReduceable state.ast
-        then Just $ ApplyClicked state.ast.id event
+      if Term.isRedex state.ast
+        then Just $ ApplyClicked uuid event
         else Nothing
 
     cn =
-      if Core.isReduceable state.ast && isNothing state.focus
+      if Term.isRedex state.ast && isNothing state.focus
         then nodeClassNames state <> ["reduceable"]
         else nodeClassNames state
   in
   if state.interaction == Disabled
-    then HH.span [ Util.className "disabled" ] [ renderNodeBody state ]
+    then HH.span [ Util.className "disabled" ] [ renderNodeBody ctx state ]
     else
       HH.span
         [ Util.classNames cn
@@ -273,23 +272,29 @@ renderReadNode state =
         , HE.onMouseOver handleMouseEnter
         , HE.onMouseOut handleMouseLeave
         ]
-        [ renderNodeBody state ]
+        [ renderNodeBody ctx state ]
 
-renderNodeBody :: State -> H.ComponentHTML Action ChildSlots Aff
-renderNodeBody state =
-  case state.ast.expr of
-    Core.Var varName ->
-      renderVar { varName }
-    Core.Lambda param body ->
-      renderLambda { param, body } state
-    Core.Apply fn arg ->
-      renderApply { fn, arg } state
+renderNodeBody :: Term.Context -> State -> H.ComponentHTML Action ChildSlots Aff
+renderNodeBody ctx state =
+  case state.ast of
+    Var var ann ->
+      let
+        varName = Term.indexToName ctx {name: var.varName, index: var.index}
+      in
+      renderVar {varName}
+    Fn fn ann ->
+      let
+        fresh = Term.pickFreshName ctx fn.paramName
+      in
+      renderFn fresh.ctx {param: fresh.name, body: fn.body} state
+    Apply fn arg ann ->
+      renderApply ctx { fn, arg } state
 
 nodeClassNames :: State -> Array String
 nodeClassNames { ast, focus } =
   case focus of
     Just { nodeId, highlight } ->
-      if nodeId == ast.id
+      if nodeId == Term.uuid ast
         then Array.cons (highlightClassName highlight) base
         else base
     Nothing ->
@@ -309,24 +314,24 @@ renderVar :: { varName :: String } -> H.ComponentHTML Action ChildSlots Aff
 renderVar { varName } =
   HH.span [ Util.className "variable" ] [ HH.text varName ]
 
-renderLambda :: { param :: String, body :: Core.Node } -> State -> H.ComponentHTML Action ChildSlots Aff
-renderLambda { param, body } state =
+renderFn :: Term.Context -> { param :: String, body :: Term.Term } -> State -> H.ComponentHTML Action ChildSlots Aff
+renderFn ctx { param, body } state =
       HH.span
         [ Util.className "lambda" ]
         [ HH.text "λ"
         , HH.text $ param <> "."
-        , renderReadNode (state{ ast = body })
+        , renderReadNode ctx (state{ ast = body })
         ]
 
-renderApply :: { fn :: Core.Node, arg :: Core.Node } -> State -> H.ComponentHTML Action ChildSlots Aff
-renderApply { fn, arg } state@{ ast, focus, reducedNodeId } =
+renderApply :: Term.Context -> { fn :: Term.Term, arg :: Term.Term } -> State -> H.ComponentHTML Action ChildSlots Aff
+renderApply ctx { fn, arg } state@{ ast, focus, reducedNodeId } =
   HH.span
     [ Util.className "apply"
     ]
     [ HH.text "("
-    , renderReadNode (state{ ast = fn })
+    , renderReadNode ctx (state{ ast = fn })
     , HH.text " "
-    , renderReadNode (state{ ast = arg })
+    , renderReadNode ctx (state{ ast = arg })
     , HH.text ")"
     ]
 
@@ -383,7 +388,7 @@ attemptCreateNewAst = getPendingContent >>= traverse_ \new -> do
     else setEditorReadState
   where getPendingContent = H.gets toPendingContent
         getCurrentContent = H.gets showAst
-        showAst = show <<< _.expr <<< _.ast
+        showAst = show <<< _.ast
         setEditorReadState = do
           H.modify_ \state -> state{ interaction = Read }
           raiseEditorClosed
@@ -485,7 +490,7 @@ handleEditBtnClicked event = do
         setTextContent textContent node = H.liftEffect $ Node.setTextContent textContent node
         setEditorContent element = do
           ast <- H.gets _.ast
-          setTextContent (show ast.expr) (HTMLElement.toNode element)
+          setTextContent (show ast) (HTMLElement.toNode element)
         getEditorElement = H.getHTMLElementRef editorRef
         bindEditorEvents element = do
           let eventTarget = HTMLElement.toEventTarget element
@@ -516,7 +521,7 @@ toPendingContent state =
       Just pendingContent
 
 toEditorId :: State -> String
-toEditorId { ast, lineIndex } = show lineIndex <> ast.id
+toEditorId { ast, lineIndex } = show lineIndex <> Term.uuid ast
 
 deleteEditorContent :: Node.Node -> Effect Unit
 deleteEditorContent = EU.runEffectFn1 _deleteEditorContent
