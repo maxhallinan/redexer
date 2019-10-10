@@ -31,6 +31,7 @@ import Halogen.Query.EventSource as ES
 import Parse as Parse
 import Term (Term(..))
 import Term as Term
+import Web.DOM.Node (Node)
 import Web.DOM.Node as Node
 import Web.Event.Event (Event, EventType(..), stopPropagation)
 import Web.Event.Event as Event
@@ -189,15 +190,15 @@ renderEditStep state = case state.interaction of
     in
       HH.div
         []
-        [ renderWriteNode writeState state
+        [ renderWriteTerm writeState state
         , errMsg
         ]
 
-renderWriteNode :: WriteState -> State -> H.ComponentHTML Action ChildSlots Aff
-renderWriteNode { parseErr } state =
-  HH.div
+renderWriteTerm :: WriteState -> State -> H.ComponentHTML Action ChildSlots Aff
+renderWriteTerm { parseErr } state =
+  HH.p
     [ HH.attr (HH.AttrName "contenteditable") "true"
-    , Util.className "ast"
+    , Util.className "editor"
     , HE.onKeyDown handleKeyDown
     , HP.id_ $ toEditorId state
     , HP.ref editorRef
@@ -273,12 +274,12 @@ renderReadTerm ctx state =
 
     cn =
       if Term.isRedex state.term && isNothing state.focus then
-        nodeClassNames state <> [ "reduceable" ]
+        termClassNames state <> [ "reduceable" ]
       else
-        nodeClassNames state
+        termClassNames state
   in
     if state.interaction == Disabled then
-      HH.span [ Util.className "disabled" ] [ renderNodeBody ctx state ]
+      HH.span [ Util.className "disabled" ] [ renderReadTermBody ctx state ]
     else
       HH.span
         [ Util.classNames cn
@@ -286,10 +287,10 @@ renderReadTerm ctx state =
         , HE.onMouseOver handleMouseEnter
         , HE.onMouseOut handleMouseLeave
         ]
-        [ renderNodeBody ctx state ]
+        [ renderReadTermBody ctx state ]
 
-renderNodeBody :: Term.Context -> State -> H.ComponentHTML Action ChildSlots Aff
-renderNodeBody ctx state = case state.term of
+renderReadTermBody :: Term.Context -> State -> H.ComponentHTML Action ChildSlots Aff
+renderReadTermBody ctx state = case state.term of
   Var var ann ->
     let
       varName = Term.indexToName ctx { name: var.varName, index: var.index }
@@ -302,8 +303,8 @@ renderNodeBody ctx state = case state.term of
       renderFn fresh.ctx { param: fresh.name, body: fn.body } state
   Apply fn arg ann -> renderApply ctx { fn, arg } state
 
-nodeClassNames :: State -> Array String
-nodeClassNames { term, focus } = case focus of
+termClassNames :: State -> Array String
+termClassNames { term, focus } = case focus of
   Just { termId, highlight } ->
     if termId == Term.uuid term then
       Array.cons (highlightClassName highlight) base
@@ -576,17 +577,17 @@ toPendingContent state = case state.interaction of
 toEditorId :: State -> String
 toEditorId { term, stepIndex } = show stepIndex <> Term.uuid term
 
-deleteEditorContent :: Node.Node -> Effect Unit
+deleteEditorContent :: Node -> Effect Unit
 deleteEditorContent = EU.runEffectFn1 _deleteEditorContent
 
-markEditorErrPos :: { before :: String, markText :: String, after :: String } -> Node.Node -> Effect Unit
+markEditorErrPos :: { before :: String, markText :: String, after :: String } -> Node -> Effect Unit
 markEditorErrPos = EU.runEffectFn2 _markEditorErrPos
 
-setEditorTextContent :: String -> Node.Node -> Effect Unit
+setEditorTextContent :: String -> Node -> Effect Unit
 setEditorTextContent = EU.runEffectFn2 _setEditorTextContent
 
-foreign import _deleteEditorContent :: EU.EffectFn1 Node.Node Unit
+foreign import _deleteEditorContent :: EU.EffectFn1 Node Unit
 
-foreign import _markEditorErrPos :: EU.EffectFn2 { before :: String, markText :: String, after :: String } Node.Node Unit
+foreign import _markEditorErrPos :: EU.EffectFn2 { before :: String, markText :: String, after :: String } Node Unit
 
-foreign import _setEditorTextContent :: EU.EffectFn2 String Node.Node Unit
+foreign import _setEditorTextContent :: EU.EffectFn2 String Node Unit

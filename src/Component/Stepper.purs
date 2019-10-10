@@ -47,13 +47,13 @@ data Action
   | EditorClosed
 
 type ChildSlots
-  = ( nodeSlot :: Step.Slot SlotIndex )
+  = ( stepSlot :: Step.Slot SlotIndex )
 
 type SlotIndex
   = Int
 
-_nodeSlot :: SProxy "nodeSlot"
-_nodeSlot = SProxy
+_stepSlot :: SProxy "stepSlot"
+_stepSlot = SProxy
 
 component :: forall q o. H.Component HH.HTML q Input o Aff
 component =
@@ -89,7 +89,7 @@ renderStep state@{ currentTerm, steps, reductionOrder, reductions } i term =
   let
     stepPos = Step.toStepPos { current: i, total: length steps }
 
-    nodeInput =
+    stepInput =
       { term
       , focus: getStepFocus { stepIndex: i } state
       , stepIndex: i
@@ -98,13 +98,13 @@ renderStep state@{ currentTerm, steps, reductionOrder, reductions } i term =
       }
 
     cn =
-      [ { name: "line", cond: true }
+      [ { name: "step", cond: true }
       , { name: "last", cond: stepPos == Step.Last || stepPos == Step.Only }
       ]
   in
     HH.div
       [ U.classNames_ cn ]
-      [ HH.slot _nodeSlot i Step.component nodeInput handleMessage ]
+      [ HH.slot _stepSlot i Step.component stepInput handleMessage ]
 
 getStepFocus :: { stepIndex :: Int } -> State -> Maybe Step.Focus
 getStepFocus { stepIndex } state =
@@ -116,20 +116,20 @@ getSuccessFocus :: Int -> State -> Maybe Step.Focus
 getSuccessFocus stepIndex state = do
   currentTerm <- state.currentTerm
   if currentTerm.stepIndex == stepIndex then do
-    line <- Array.index state.steps stepIndex
+    step <- Array.index state.steps stepIndex
     reducedId <- Array.index state.reductionOrder stepIndex
-    reducedNode <- Term.findTerm reducedId line
-    if Term.isDescendantOf currentTerm.termId reducedNode then
+    reducedTerm <- Term.findTerm reducedId step
+    if Term.isDescendantOf currentTerm.termId reducedTerm then
       pure $ makeFocus reducedId
     else
       Nothing
   else
     if currentTerm.stepIndex + 1 == stepIndex then do
-      line <- Array.index state.steps currentTerm.stepIndex
+      step <- Array.index state.steps currentTerm.stepIndex
       reducedId <- Array.index state.reductionOrder currentTerm.stepIndex
-      reducedNode <- Term.findTerm reducedId line
+      reducedTerm <- Term.findTerm reducedId step
       successId <- Map.lookup reducedId state.reductions
-      if Term.isDescendantOf currentTerm.termId reducedNode then
+      if Term.isDescendantOf currentTerm.termId reducedTerm then
         pure $ makeFocus successId
       else
         Nothing
@@ -141,13 +141,13 @@ getSuccessFocus stepIndex state = do
 getTodoFocus :: Int -> State -> Maybe Step.Focus
 getTodoFocus stepIndex state = do
   currentTerm <- state.currentTerm
-  line <- Array.index state.steps stepIndex
-  node <- Term.findTerm currentTerm.termId line
-  applyNode <- Term.closestRedexAncestor (Term.uuid node) line
+  step <- Array.index state.steps stepIndex
+  term <- Term.findTerm currentTerm.termId step
+  nearestRedex <- Term.closestRedexAncestor (Term.uuid term) step
   let
     isReduced = isJust $ Array.index state.reductionOrder stepIndex
   if stepIndex == currentTerm.stepIndex && not isReduced then
-    pure $ makeFocus (Term.uuid applyNode)
+    pure $ makeFocus (Term.uuid nearestRedex)
   else
     Nothing
   where
@@ -177,10 +177,10 @@ handleAction action = case action of
   CurrentTermChanged currentTerm -> handleCurrentTerm currentTerm
 
 handleEditorOpened :: forall o. Int -> H.HalogenM State Action ChildSlots o Aff Unit
-handleEditorOpened stepIndex = void $ H.queryAll _nodeSlot (H.tell $ Step.Disable { stepIndex })
+handleEditorOpened stepIndex = void $ H.queryAll _stepSlot (H.tell $ Step.Disable { stepIndex })
 
 handleEditorClosed :: forall o. H.HalogenM State Action ChildSlots o Aff Unit
-handleEditorClosed = void $ H.queryAll _nodeSlot (H.tell Step.Enable)
+handleEditorClosed = void $ H.queryAll _stepSlot (H.tell Step.Enable)
 
 handleCurrentTerm :: forall o. Maybe CurrentTerm -> H.HalogenM State Action ChildSlots o Aff Unit
 handleCurrentTerm currentTerm = H.modify_ \s -> s { currentTerm = currentTerm }

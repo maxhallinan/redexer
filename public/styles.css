@@ -201,7 +201,7 @@ h6 {
 }
 
 .editor,
-.line {
+.step {
   font-family: "TriplicateT3Code";
   font-size: 1.125rem;
 }
@@ -216,55 +216,51 @@ h6 {
   padding: 0;
 }
 
+.editor:focus {
+  outline: none;
+}
+
 .prose .done,
-.line .done {
+.step .done {
   text-decoration: line-through;
   text-decoration-style: solid;
 }
 
 .prose .success,
-.line .success {
+.step .success {
   background: rgba(81,232,152,0.5);
   cursor: default;
   text-decoration: none;
 }
 
 .prose .reduceable,
-.line.last .reduceable {
+.step.last .reduceable {
   text-decoration: underline;
   text-decoration-style: dotted;
   text-decoration-skip-ink: none;
 }
 
 .prose .todo,
-.line.last .todo {
+.step.last .todo {
   background: rgba(242,214,0,0.5);
   cursor: pointer;
   text-decoration: none;
 }
 
-.ast {
-  display: inline-block;
-}
-
-.ast:focus {
-  outline: none;
-}
-
-.line .error {
+.step .error {
   color: #eb5a46;
 }
 
-.line .error-position {
+.step .error-position {
   background: #eb5a46;
 }
 
-.line .error-msg {
+.step .error-msg {
   font-size: 1rem;
   position: relative;
   top: -4px;
 }
 
-.line .disabled {
+.step .disabled {
   color: #b3bac5;
 }
