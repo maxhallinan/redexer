@@ -18,18 +18,14 @@ spec :: Spec Unit
 spec = do
   describe "ParseTerm" do
     describe "ParseTerm.parse" do
-      it "Parses a variable."
-        $ do
-            quickCheck prop_parseVar
-      it "Parses a function."
-        $ do
-            quickCheck prop_parseFn
-      it "Parses a lambda application."
-        $ do
-            quickCheck prop_parseApply
-      it "Parses an arbitrary expression."
-        $ do
-            quickCheck prop_parseExpr
+      it "Parses a variable." do
+        quickCheck prop_parseVar
+      it "Parses a function." do
+        quickCheck prop_parseFn
+      it "Parses a lambda application." do
+        quickCheck prop_parseApply
+      it "Parses an arbitrary expression." do
+        quickCheck prop_parseExpr
 
 data TermType
   = V
@@ -97,16 +93,15 @@ instance arbitraryArbApply :: Arbitrary ArbApply where
 
 genApply :: Gen String -> Gen String
 genApply genTerm' =
-  token
-    $ do
-        p1 <- token $ pure "("
-        -- A function in the left position must be wrapped in parens or the term in
-        -- right position will be parsed as part of the function body.
-        t1 <- oneOf (genVar :| [ parens $ genFn genTerm', genApply genTerm' ])
-        s <- token $ pure " "
-        t2 <- genTerm'
-        p2 <- token $ pure ")"
-        pure $ p1 <> t1 <> s <> t2 <> p2
+  token do
+    p1 <- token $ pure "("
+    -- A function in the left position must be wrapped in parens or the term in
+    -- right position will be parsed as part of the function body.
+    t1 <- oneOf (genVar :| [ parens $ genFn genTerm', genApply genTerm' ])
+    s <- token $ pure " "
+    t2 <- genTerm'
+    p2 <- token $ pure ")"
+    pure $ p1 <> t1 <> s <> t2 <> p2
 
 parens :: Gen String -> Gen String
 parens x = do
@@ -125,13 +120,12 @@ instance arbitraryArbFn :: Arbitrary ArbFn where
 
 genFn :: Gen String -> Gen String
 genFn genTerm' =
-  token
-    $ do
-        l <- token $ oneOf $ (pure "\\" :| [ pure "λ" ])
-        v <- genVar
-        d <- token $ pure "."
-        e <- genTerm'
-        pure $ l <> v <> d <> e
+  token do
+    l <- token $ oneOf $ (pure "\\" :| [ pure "λ" ])
+    v <- genVar
+    d <- token $ pure "."
+    e <- genTerm'
+    pure $ l <> v <> d <> e
 
 newtype ArbVar
   = ArbVar String
@@ -143,11 +137,10 @@ instance arbitraryArbVar :: Arbitrary ArbVar where
 
 genVar :: Gen String
 genVar =
-  token
-    $ do
-        x <- genAlpha
-        xs <- arrayOf genDigitChar
-        pure $ fromCharArray (x : xs)
+  token do
+    x <- genAlpha
+    xs <- arrayOf genDigitChar
+    pure $ fromCharArray (x : xs)
 
 token :: Gen String -> Gen String
 token x = do
