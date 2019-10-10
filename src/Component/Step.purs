@@ -1,13 +1,13 @@
 module Component.Step
   ( Slot
   , Input
-  , LinePos(..)
+  , StepPos(..)
   , Message(..)
   , Focus
   , Highlight(..)
   , Query(..)
   , component
-  , toLinePos
+  , toStepPos
   ) where
 
 import Prelude
@@ -39,20 +39,20 @@ import Web.UIEvent.MouseEvent (MouseEvent, toEvent)
 import Web.UIEvent.KeyboardEvent as KeyboardEvent
 
 type Input
-  = { ast :: Term
-    , lineIndex :: Int
-    , linePos :: LinePos
-    , focus :: Maybe Focus
-    , reducedNodeId :: Maybe String
+  = { focus :: Maybe Focus
+    , reducedTermId :: Maybe String
+    , stepIndex :: Int
+    , stepPos :: StepPos
+    , term :: Term
     }
 
 type State
-  = { ast :: Term
+  = { focus :: Maybe Focus
     , interaction :: Interaction
-    , lineIndex :: Int
-    , linePos :: LinePos
-    , focus :: Maybe Focus
-    , reducedNodeId :: Maybe String
+    , reducedTermId :: Maybe String
+    , stepIndex :: Int
+    , stepPos :: StepPos
+    , term :: Term
     }
 
 data Interaction
@@ -67,7 +67,7 @@ type WriteState
 
 type Focus
   = { highlight :: Highlight
-    , nodeId :: String
+    , termId :: String
     }
 
 data Highlight
@@ -75,16 +75,16 @@ data Highlight
   | Success
   | Todo
 
-data LinePos
+data StepPos
   = First
   | Last
   | Middle
   | Only
 
-derive instance eqLinePos :: Eq LinePos
+derive instance eqStepPos :: Eq StepPos
 
-toLinePos :: { current :: Int, total :: Int } -> LinePos
-toLinePos { current, total } =
+toStepPos :: { current :: Int, total :: Int } -> StepPos
+toStepPos { current, total } =
   if total == 1 then
     Only
   else
@@ -103,8 +103,8 @@ data Action
   | EditorBlurred
   | EditorKeyDown (Maybe EditorKey) KeyboardEvent.KeyboardEvent
   | InputUpdated Input
-  | NodeMouseEnter String MouseEvent
-  | NodeMouseLeave String MouseEvent
+  | TermMouseEnter String MouseEvent
+  | TermMouseLeave String MouseEvent
 
 data EditorKey
   = EnterKey
@@ -116,14 +116,14 @@ toEditorKey = case _ of
 
 data Message
   = Applied String
-  | EditorOpened { lineIndex :: Int }
+  | EditorOpened { stepIndex :: Int }
   | EditorClosed
-  | NewAst { ast :: Term }
-  | NodeHoverOn { lineIndex :: Int, nodeId :: String }
-  | NodeHoverOff
+  | NewTerm { term :: Term }
+  | TermHoverOn { stepIndex :: Int, termId :: String }
+  | TermHoverOff
 
 data Query a
-  = Disable { lineIndex :: Int } a
+  = Disable { stepIndex :: Int } a
   | Enable a
 
 type Slot
@@ -148,39 +148,39 @@ component =
 
 initState :: Input -> State
 initState i =
-  { ast: i.ast
+  { focus: i.focus
   , interaction: Read
-  , lineIndex: i.lineIndex
-  , linePos: i.linePos
-  , focus: i.focus
-  , reducedNodeId: i.reducedNodeId
+  , reducedTermId: i.reducedTermId
+  , stepIndex: i.stepIndex
+  , stepPos: i.stepPos
+  , term: i.term
   }
 
 render :: State -> H.ComponentHTML Action ChildSlots Aff
-render state = case state.linePos of
-  First -> renderEditableLine state
-  Only -> renderEditableLine state
-  Middle -> renderReadOnlyLine state
-  Last -> renderReadOnlyLine state
+render state = case state.stepPos of
+  First -> renderEditStep state
+  Only -> renderEditStep state
+  Middle -> renderReadStep state
+  Last -> renderReadStep state
 
-renderReadOnlyLine :: State -> H.ComponentHTML Action ChildSlots Aff
-renderReadOnlyLine state =
+renderReadStep :: State -> H.ComponentHTML Action ChildSlots Aff
+renderReadStep state =
   HH.div
     []
-    [ renderReadNode mempty state
+    [ renderReadTerm mempty state
     ]
 
-renderEditableLine :: State -> H.ComponentHTML Action ChildSlots Aff
-renderEditableLine state = case state.interaction of
+renderEditStep :: State -> H.ComponentHTML Action ChildSlots Aff
+renderEditStep state = case state.interaction of
   Disabled ->
     HH.div
       []
-      [ renderReadNode mempty state
+      [ renderReadTerm mempty state
       ]
   Read ->
     HH.div
       []
-      [ renderReadNode mempty state
+      [ renderReadTerm mempty state
       , renderEditBtn
       ]
   Write writeState ->
@@ -205,7 +205,7 @@ renderWriteNode { parseErr } state =
     [ HH.text ""
     ]
   where
-  astText = show state.ast
+  termText = show state.term
 
   errPos = map Parse.errPos parseErr
 
@@ -219,15 +219,15 @@ editorRef :: H.RefLabel
 editorRef = H.RefLabel "editor"
 
 highlightErrPos :: String -> { column :: Int, line :: Int } -> { before :: String, markText :: String, after :: String }
-highlightErrPos astText { column } =
+highlightErrPos termText { column } =
   let
-    before = String.take (column - 1) astText
+    before = String.take (column - 1) termText
 
     markText =
-      String.codePointAt (column - 1) astText
+      String.codePointAt (column - 1) termText
         # maybe "" CodePoints.singleton
 
-    after = String.drop column astText
+    after = String.drop column termText
   in
     { before, markText, after }
 
@@ -256,23 +256,23 @@ renderEditBtn =
     ]
     [ HH.text "edit" ]
 
-renderReadNode :: Term.Context -> State -> H.ComponentHTML Action ChildSlots Aff
-renderReadNode ctx state =
+renderReadTerm :: Term.Context -> State -> H.ComponentHTML Action ChildSlots Aff
+renderReadTerm ctx state =
   let
-    uuid = Term.uuid state.ast
+    uuid = Term.uuid state.term
 
-    handleMouseEnter event = Just $ NodeMouseEnter uuid event
+    handleMouseEnter event = Just $ TermMouseEnter uuid event
 
-    handleMouseLeave event = Just $ NodeMouseLeave uuid event
+    handleMouseLeave event = Just $ TermMouseLeave uuid event
 
     handleClick event =
-      if Term.isRedex state.ast then
+      if Term.isRedex state.term then
         Just $ ApplyClicked uuid event
       else
         Nothing
 
     cn =
-      if Term.isRedex state.ast && isNothing state.focus then
+      if Term.isRedex state.term && isNothing state.focus then
         nodeClassNames state <> [ "reduceable" ]
       else
         nodeClassNames state
@@ -289,7 +289,7 @@ renderReadNode ctx state =
         [ renderNodeBody ctx state ]
 
 renderNodeBody :: Term.Context -> State -> H.ComponentHTML Action ChildSlots Aff
-renderNodeBody ctx state = case state.ast of
+renderNodeBody ctx state = case state.term of
   Var var ann ->
     let
       varName = Term.indexToName ctx { name: var.varName, index: var.index }
@@ -303,9 +303,9 @@ renderNodeBody ctx state = case state.ast of
   Apply fn arg ann -> renderApply ctx { fn, arg } state
 
 nodeClassNames :: State -> Array String
-nodeClassNames { ast, focus } = case focus of
-  Just { nodeId, highlight } ->
-    if nodeId == Term.uuid ast then
+nodeClassNames { term, focus } = case focus of
+  Just { termId, highlight } ->
+    if termId == Term.uuid term then
       Array.cons (highlightClassName highlight) base
     else
       base
@@ -328,30 +328,30 @@ renderFn ctx { param, body } state =
     [ Util.className "lambda" ]
     [ HH.text "λ"
     , HH.text $ param <> "."
-    , renderReadNode ctx (state { ast = body })
+    , renderReadTerm ctx (state { term = body })
     ]
 
 renderApply :: Term.Context -> { fn :: Term.Term, arg :: Term.Term } -> State -> H.ComponentHTML Action ChildSlots Aff
-renderApply ctx { fn, arg } state@{ ast, focus, reducedNodeId } =
+renderApply ctx { fn, arg } state@{ term, focus, reducedTermId } =
   HH.span
     [ Util.className "apply"
     ]
     [ HH.text "("
-    , renderReadNode ctx (state { ast = fn })
+    , renderReadTerm ctx (state { term = fn })
     , HH.text " "
-    , renderReadNode ctx (state { ast = arg })
+    , renderReadTerm ctx (state { term = arg })
     , HH.text ")"
     ]
 
 handleQuery :: forall a. Query a -> H.HalogenM State Action ChildSlots Message Aff (Maybe a)
 handleQuery = case _ of
-  Disable { lineIndex } next -> handleDisableQuery { lineIndex } next
+  Disable { stepIndex } next -> handleDisableQuery { stepIndex } next
   Enable next -> handleEnableQuery next
 
-handleDisableQuery :: forall a. { lineIndex :: Int } -> a -> H.HalogenM State Action ChildSlots Message Aff (Maybe a)
-handleDisableQuery { lineIndex } next = do
-  currentLine <- H.gets _.lineIndex
-  when (currentLine /= lineIndex) setDisabledState
+handleDisableQuery :: forall a. { stepIndex :: Int } -> a -> H.HalogenM State Action ChildSlots Message Aff (Maybe a)
+handleDisableQuery { stepIndex } next = do
+  currentStep <- H.gets _.stepIndex
+  when (currentStep /= stepIndex) setDisabledState
   returnNext
   where
   setDisabledState = H.modify_ \state -> state { interaction = Disabled }
@@ -367,11 +367,11 @@ handleAction :: Action -> H.HalogenM State Action ChildSlots Message Aff Unit
 handleAction = case _ of
   InputUpdated input -> do
     handleInputUpdated input
-  ApplyClicked nodeId event -> do
-    handleApplyClicked nodeId event
-  NodeMouseEnter nodeId event -> do
-    handleNodeMouseEnter nodeId event
-  NodeMouseLeave nodeId event -> handleNodeMouseLeave nodeId event
+  ApplyClicked termId event -> do
+    handleApplyClicked termId event
+  TermMouseEnter termId event -> do
+    handleTermMouseEnter termId event
+  TermMouseLeave termId event -> handleTermMouseLeave termId event
   EditBtnClicked event -> handleEditBtnClicked event
   EditorBlurred -> handleEditorBlurred
   EditorContentChanged event -> handleEditorContentChanged event
@@ -382,12 +382,12 @@ handleEditorKeyDown editorKey event =
   editorKey
     # traverse_ \EnterKey -> do
         preventDefault event
-        attemptCreateNewAst
+        attemptCreateNewTerm
   where
   preventDefault = H.liftEffect <<< Event.preventDefault <<< KeyboardEvent.toEvent
 
-attemptCreateNewAst :: H.HalogenM State Action ChildSlots Message Aff Unit
-attemptCreateNewAst =
+attemptCreateNewTerm :: H.HalogenM State Action ChildSlots Message Aff Unit
+attemptCreateNewTerm =
   getPendingContent
     >>= traverse_ \new -> do
         isValid <- isValidContent new
@@ -398,9 +398,9 @@ attemptCreateNewAst =
   where
   getPendingContent = H.gets toPendingContent
 
-  getCurrentContent = H.gets showAst
+  getCurrentContent = H.gets showTerm
 
-  showAst = show <<< _.ast
+  showTerm = show <<< _.term
 
   setEditorReadState = do
     H.modify_ \state -> state { interaction = Read }
@@ -414,9 +414,17 @@ attemptCreateNewAst =
     old <- getCurrentContent
     pure $ (new /= "") && (new /= old)
 
-  raiseNewAst ast = H.raise $ NewAst { ast }
+  raiseNewTerm term = H.raise $ NewTerm { term }
 
-  setEditorErrState pendingContent err = H.modify_ \state -> state { interaction = Write { parseErr: Just err, pendingContent } }
+  setEditorErrState pendingContent err =
+    H.modify_ \state ->
+      state
+        { interaction =
+          Write
+            { parseErr: Just err
+            , pendingContent
+            }
+        }
 
   markErrPosInEditor pendingContent err =
     getEditorElement
@@ -432,8 +440,8 @@ attemptCreateNewAst =
     Left err -> do
       setEditorErrState new err
       markErrPosInEditor new err
-    Right ast -> do
-      raiseNewAst ast
+    Right term -> do
+      raiseNewTerm term
       setEditorReadState
 
 handleEditorContentChanged :: Event -> H.HalogenM State Action ChildSlots Message Aff Unit
@@ -449,7 +457,11 @@ handleEditorContentChanged event = do
 
   getPendingContent = H.liftEffect <<< Node.textContent
 
-  updateInteraction content = H.modify_ \state -> state { interaction = updatePendingContent content state.interaction }
+  updateInteraction content =
+    H.modify_ \state ->
+      state
+        { interaction = updatePendingContent content state.interaction
+        }
 
   deleteEditorContentIfEmpty content node =
     if content == "" then
@@ -478,28 +490,28 @@ handleInputUpdated :: Input -> H.HalogenM State Action ChildSlots Message Aff Un
 handleInputUpdated i =
   H.modify_ \s ->
     s
-      { ast = i.ast
-      , lineIndex = i.lineIndex
-      , linePos = i.linePos
+      { term = i.term
+      , stepIndex = i.stepIndex
+      , stepPos = i.stepPos
       , focus = i.focus
-      , reducedNodeId = i.reducedNodeId
+      , reducedTermId = i.reducedTermId
       }
 
 handleApplyClicked :: String -> MouseEvent -> H.HalogenM State Action ChildSlots Message Aff Unit
-handleApplyClicked nodeId event = do
+handleApplyClicked termId event = do
   stopProp event
-  H.raise $ Applied nodeId
+  H.raise $ Applied termId
 
-handleNodeMouseEnter :: String -> MouseEvent -> H.HalogenM State Action ChildSlots Message Aff Unit
-handleNodeMouseEnter nodeId event = do
+handleTermMouseEnter :: String -> MouseEvent -> H.HalogenM State Action ChildSlots Message Aff Unit
+handleTermMouseEnter termId event = do
   stopProp event
-  { lineIndex } <- H.get
-  H.raise $ NodeHoverOn { lineIndex, nodeId }
+  { stepIndex } <- H.get
+  H.raise $ TermHoverOn { stepIndex, termId }
 
-handleNodeMouseLeave :: String -> MouseEvent -> H.HalogenM State Action ChildSlots Message Aff Unit
-handleNodeMouseLeave nodeId event = do
+handleTermMouseLeave :: String -> MouseEvent -> H.HalogenM State Action ChildSlots Message Aff Unit
+handleTermMouseLeave termId event = do
   stopProp event
-  H.raise NodeHoverOff
+  H.raise TermHoverOff
 
 handleEditBtnClicked :: MouseEvent -> H.HalogenM State Action ChildSlots Message Aff Unit
 handleEditBtnClicked event = do
@@ -514,13 +526,17 @@ handleEditBtnClicked event = do
   where
   setEditorFocus = H.gets toEditorId >>= setFocus
 
-  setEditorWriteState = H.modify_ \state -> state { interaction = Write { parseErr: Nothing, pendingContent: "" } }
+  setEditorWriteState =
+    H.modify_ \state ->
+      state
+        { interaction = Write { parseErr: Nothing, pendingContent: "" }
+        }
 
   setTextContent textContent node = H.liftEffect $ Node.setTextContent textContent node
 
   setEditorContent element = do
-    ast <- H.gets _.ast
-    setTextContent (show ast) (HTMLElement.toNode element)
+    term <- H.gets _.term
+    setTextContent (show term) (HTMLElement.toNode element)
 
   getEditorElement = H.getHTMLElementRef editorRef
 
@@ -530,7 +546,10 @@ handleEditBtnClicked event = do
     onEvent "blur" handleBlur eventTarget
     onEvent "input" handleInput eventTarget
 
-  onEvent name handler target = void $ H.subscribe $ ES.eventListenerEventSource (EventType name) target handler
+  onEvent name handler target = do
+    let
+      eventSource = ES.eventListenerEventSource (EventType name) target handler
+    void $ H.subscribe eventSource
 
   handleBlur _ = Just EditorBlurred
 
@@ -539,11 +558,11 @@ handleEditBtnClicked event = do
   setFocus = H.liftEffect <<< Util.setFocus
 
   raiseEditorOpened = do
-    lineIndex <- H.gets _.lineIndex
-    H.raise $ EditorOpened { lineIndex }
+    stepIndex <- H.gets _.stepIndex
+    H.raise $ EditorOpened { stepIndex }
 
 handleEditorBlurred :: H.HalogenM State Action ChildSlots Message Aff Unit
-handleEditorBlurred = attemptCreateNewAst
+handleEditorBlurred = attemptCreateNewTerm
 
 stopProp :: MouseEvent -> H.HalogenM State Action ChildSlots Message Aff Unit
 stopProp = void <<< liftEffect <<< stopPropagation <<< toEvent
@@ -555,7 +574,7 @@ toPendingContent state = case state.interaction of
   Write { pendingContent } -> Just pendingContent
 
 toEditorId :: State -> String
-toEditorId { ast, lineIndex } = show lineIndex <> Term.uuid ast
+toEditorId { term, stepIndex } = show stepIndex <> Term.uuid term
 
 deleteEditorContent :: Node.Node -> Effect Unit
 deleteEditorContent = EU.runEffectFn1 _deleteEditorContent
