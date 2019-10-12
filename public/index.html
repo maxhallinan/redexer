@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link href="./styles.css" rel="stylesheet">
-    <title>Lambda stepper</title>
+    <title>Redexer</title>
     <link rel="preload" as="font" type="font/woff2" href="https://static.maxhallinan.com/fonts/klim/TiemposTextWeb-Regular.woff2" crossorigin/>
     <link rel="preload" as="font" type="font/woff2" href="https://static.maxhallinan.com/fonts/klim/TiemposHeadlineWeb-Semibold.woff2" crossorigin/>
     <link rel="preload" as="font" type="font/woff2" href="https://static.maxhallinan.com/fonts/mb/TriplicateT3Code-Regular.woff2" crossorigin/>
@@ -13,16 +13,12 @@
     <article class="article">
       <div class="prose">
         <header>
-          <h1>The substitution methods</h1>
+          <h1>Redexer</h1>
           <p class="byline">By <a href="https://www.maxhallinan.com">Max Hallinan</a></p>
         </header>
         <p>
-Use your cursor to explore the Lambda calculus. 
-A <span class="reduceable">dotted underline</span> indicates the largest reduceable term.
-You can hover over this to find <span class="todo">smaller reduceable</span> terms.
-Hover on a <span class="done">reduced term</span> to find the <span class="success">result</span>.
+Step through the reduction of an untyped lambda calculus term.
         </p>
-        <h2>Full beta-reduction</h2>
       </div>
       <div class="stepper">
         <code>

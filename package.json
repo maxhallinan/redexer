@@ -1,4 +1,11 @@
 {
+  "name": "redexer",
+  "version": "0.1.0",
+  "author": {
+    "name": "Max Hallinan",
+    "email": "maxhallinan@gmail.com",
+    "url": "maxhallinan.com"
+  },
   "scripts": {
     "build": "spago bundle-app --main Main --to public/bundle.js; parcel build public/index.html",
     "bundle-watch": "spago bundle-app --watch --main Main --to public/bundle.js",
