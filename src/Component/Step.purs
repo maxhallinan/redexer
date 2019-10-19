@@ -11,7 +11,6 @@ module Component.Step
   ) where
 
 import Prelude
-import Debug.Trace (spy)
 import Component.Util as Util
 import Data.Array as Array
 import Data.Either (Either(..))
