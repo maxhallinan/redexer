@@ -1,7 +1,7 @@
 module Main where
 
 import Prelude
-import Component.Stepper as Stepper
+import Component.Redexer as Redexer
 import Data.Maybe (Maybe(..))
 import Data.String.Common (trim)
 import Data.Traversable (traverse)
@@ -19,27 +19,27 @@ import Web.HTML.HTMLElement (fromNode)
 main :: Effect Unit
 main = do
   doc <- getDocument
-  nodes <- getStepperNodes doc
-  initSteppers nodes
+  nodes <- getNodes doc
+  initRedexers nodes
 
 getDocument :: Effect HTMLDocument
 getDocument = window >>= document
 
-getStepperNodes :: HTMLDocument -> Effect (Array Node)
-getStepperNodes =
+getNodes :: HTMLDocument -> Effect (Array Node)
+getNodes =
   toArray
-    <=< querySelectorAll (QuerySelector ".stepper")
+    <=< querySelectorAll (QuerySelector ".redexer")
     <<< toParentNode
 
-initSteppers :: Array Node -> Effect Unit
-initSteppers = void <<< traverse init
+initRedexers :: Array Node -> Effect Unit
+initRedexers = void <<< traverse init
   where
   init node = case fromNode node of
     Nothing -> pure unit
     Just element -> do
       defaultContent <- map trim (textContent node)
       removeChildren node
-      HA.runHalogenAff $ runUI Stepper.component { defaultContent } element
+      HA.runHalogenAff $ runUI Redexer.component { defaultContent } element
 
 removeChildren :: Node -> Effect Unit
 removeChildren node =

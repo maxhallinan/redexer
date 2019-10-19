@@ -1,4 +1,4 @@
-module Component.Stepper (component) where
+module Component.Redexer (component) where
 
 import Prelude
 import Component.Step as Step
