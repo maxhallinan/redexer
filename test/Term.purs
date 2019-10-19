@@ -1,6 +1,7 @@
 module Test.Term (spec) where
 
 import Prelude
+
 import Data.Either (Either(..))
 import Effect.Aff (Aff)
 import Parse (parse)

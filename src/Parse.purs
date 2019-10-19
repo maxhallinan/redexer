@@ -6,6 +6,7 @@ module Parse
   ) where
 
 import Prelude
+
 import Control.Alt ((<|>))
 import Control.Lazy (fix)
 import Control.Monad.State (State)
@@ -23,16 +24,14 @@ import Text.Parsing.Parser.Pos as Pos
 import Text.Parsing.Parser.String as Str
 import Text.Parsing.Parser.Token as Tok
 
-type Parser a
-  = ParserT String ParseState a
+type Parser a= ParserT String ParseState a
 
-type ParseState
-  = State Context
+type ParseState = State Context
 
-type Context
-  = { bound :: Array String
-    , free :: Array String
-    }
+type Context =
+  { bound :: Array String
+  , free :: Array String
+  }
 
 initialContext :: Context
 initialContext =
@@ -40,8 +39,7 @@ initialContext =
   , free: []
   }
 
-type ParseErr
-  = ParseError
+type ParseErr = ParseError
 
 parse :: String -> Either ParseErr Term
 parse =

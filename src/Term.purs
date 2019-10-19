@@ -16,6 +16,7 @@ module Term
   ) where
 
 import Prelude
+
 import Control.Alt ((<|>))
 import Data.Array as Array
 import Data.Maybe (Maybe(..), isNothing, maybe)
@@ -30,8 +31,9 @@ data Term
 instance showTerm :: Show Term where
   show = showTermImpl
 
-type Ann
-  = { uuid :: String }
+type Ann =
+  { uuid :: String
+  }
 
 emptyAnn :: Ann
 emptyAnn = { uuid: "" }
@@ -84,8 +86,7 @@ shift inc term = go 0 term
     Fn { paramName, body } ann -> Fn { paramName, body: go (c + 1) body } ann
     Apply l r ann -> Apply (go c l) (go c r) ann
 
-type Context
-  = Array String
+type Context = Array String
 
 showTermImpl :: Term -> String
 showTermImpl = go []

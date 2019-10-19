@@ -1,6 +1,7 @@
 module Main where
 
 import Prelude
+
 import Component.Redexer as Redexer
 import Data.Maybe (Maybe(..))
 import Data.String.Common (trim)
@@ -12,9 +13,9 @@ import Web.DOM.Node (Node, childNodes, removeChild, textContent)
 import Web.DOM.NodeList (toArray)
 import Web.DOM.ParentNode (QuerySelector(..), querySelectorAll)
 import Web.HTML (window)
-import Web.HTML.Window (document)
 import Web.HTML.HTMLDocument (HTMLDocument, toParentNode)
 import Web.HTML.HTMLElement (fromNode)
+import Web.HTML.Window (document)
 
 main :: Effect Unit
 main = do

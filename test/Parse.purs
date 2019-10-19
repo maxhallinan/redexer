@@ -1,18 +1,19 @@
 module Test.Parse (spec) where
 
 import Prelude
+
 import Data.Array ((:))
+import Data.Char.Gen (genAlpha, genDigitChar)
 import Data.Either (either, isRight)
 import Data.Foldable (intercalate)
 import Data.NonEmpty ((:|))
-import Data.Char.Gen (genAlpha, genDigitChar)
 import Data.String.CodeUnits (fromCharArray, toCharArray)
 import Parse (parse)
 import Term (Term(..))
-import Test.Spec (Spec, describe, it)
-import Test.Spec.QuickCheck (quickCheck)
 import Test.QuickCheck.Arbitrary (class Arbitrary)
 import Test.QuickCheck.Gen (Gen, arrayOf, listOf, elements, oneOf, resize, sized)
+import Test.Spec (Spec, describe, it)
+import Test.Spec.QuickCheck (quickCheck)
 
 spec :: Spec Unit
 spec = do
@@ -153,4 +154,4 @@ genWhiteSpace :: Gen String
 genWhiteSpace = fromCharArray <$> resize 3 (arrayOf genWhitespaceChar)
 
 genWhitespaceChar :: Gen Char
-genWhitespaceChar = elements $ ' ' :| toCharArray "\t\n\r"
+genWhitespaceChar = elements $ ' ' :| toCharArray "\	\\n\\r"

@@ -6,6 +6,7 @@ module Component.Util
   ) where
 
 import Prelude
+
 import Data.Array as Array
 import Effect (Effect)
 import Effect.Uncurried as EU

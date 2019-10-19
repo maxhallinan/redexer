@@ -1,6 +1,7 @@
 module Component.Redexer (component) where
 
 import Prelude
+
 import Component.Step as Step
 import Component.Util as U
 import Control.Alt ((<|>))
@@ -20,23 +21,23 @@ import Parse as Parse
 import Term (Term)
 import Term as Term
 
-type Input
-  = { defaultContent :: String
-    }
+type Input =
+  { defaultContent :: String
+  }
 
-type State
-  = { currentTerm :: Maybe CurrentTerm
-    , defaultContent :: String
-    , steps :: Array Term
-    , parseErr :: Maybe Parse.ParseErr
-    , reductionOrder :: Array String
-    , reductions :: Map String String
-    }
+type State =
+  { currentTerm :: Maybe CurrentTerm
+  , defaultContent :: String
+  , steps :: Array Term
+  , parseErr :: Maybe Parse.ParseErr
+  , reductionOrder :: Array String
+  , reductions :: Map String String
+  }
 
-type CurrentTerm
-  = { stepIndex :: Int
-    , termId :: String
-    }
+type CurrentTerm =
+  { stepIndex :: Int
+  , termId :: String
+  }
 
 data Action
   = Initialize
@@ -46,11 +47,9 @@ data Action
   | EditorOpened { stepIndex :: Int }
   | EditorClosed
 
-type ChildSlots
-  = ( stepSlot :: Step.Slot SlotIndex )
+type ChildSlots = ( stepSlot :: Step.Slot SlotIndex )
 
-type SlotIndex
-  = Int
+type SlotIndex = Int
 
 _stepSlot :: SProxy "stepSlot"
 _stepSlot = SProxy

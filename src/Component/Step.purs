@@ -11,6 +11,7 @@ module Component.Step
   ) where
 
 import Prelude
+
 import Component.Util as Util
 import Data.Array as Array
 import Data.Either (Either(..))
@@ -36,25 +37,25 @@ import Web.DOM.Node as Node
 import Web.Event.Event (Event, EventType(..), stopPropagation)
 import Web.Event.Event as Event
 import Web.HTML.HTMLElement as HTMLElement
-import Web.UIEvent.MouseEvent (MouseEvent, toEvent)
 import Web.UIEvent.KeyboardEvent as KeyboardEvent
+import Web.UIEvent.MouseEvent (MouseEvent, toEvent)
 
-type Input
-  = { focus :: Maybe Focus
-    , reducedTermId :: Maybe String
-    , stepIndex :: Int
-    , stepPos :: StepPos
-    , term :: Term
-    }
+type Input =
+  { focus :: Maybe Focus
+  , reducedTermId :: Maybe String
+  , stepIndex :: Int
+  , stepPos :: StepPos
+  , term :: Term
+  }
 
-type State
-  = { focus :: Maybe Focus
-    , interaction :: Interaction
-    , reducedTermId :: Maybe String
-    , stepIndex :: Int
-    , stepPos :: StepPos
-    , term :: Term
-    }
+type State =
+  { focus :: Maybe Focus
+  , interaction :: Interaction
+  , reducedTermId :: Maybe String
+  , stepIndex :: Int
+  , stepPos :: StepPos
+  , term :: Term
+  }
 
 data Interaction
   = Disabled
@@ -63,13 +64,15 @@ data Interaction
 
 derive instance eqInteraction :: Eq Interaction
 
-type WriteState
-  = { pendingContent :: String, parseErr :: Maybe Parse.ParseErr }
+type WriteState =
+  { pendingContent :: String
+  , parseErr :: Maybe Parse.ParseErr
+  }
 
-type Focus
-  = { highlight :: Highlight
-    , termId :: String
-    }
+type Focus =
+  { highlight :: Highlight
+  , termId :: String
+  }
 
 data Highlight
   = Done
@@ -127,11 +130,9 @@ data Query a
   = Disable { stepIndex :: Int } a
   | Enable a
 
-type Slot
-  = H.Slot Query Message
+type Slot = H.Slot Query Message
 
-type ChildSlots
-  = ()
+type ChildSlots = ()
 
 component :: H.Component HH.HTML Query Input Message Aff
 component =
