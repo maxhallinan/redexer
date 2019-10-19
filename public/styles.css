@@ -236,8 +236,6 @@ h6 {
 .prose .reduceable,
 .step.last .reduceable {
   text-decoration: underline;
-  text-decoration-style: dotted;
-  text-decoration-skip-ink: none;
 }
 
 .prose .todo,
