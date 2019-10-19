@@ -10,3 +10,4 @@
 /.spago
 dist
 public/bundle.*
+.s3cmd

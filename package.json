@@ -7,11 +7,10 @@
     "url": "maxhallinan.com"
   },
   "scripts": {
-    "build": "spago bundle-app --main Main --to public/bundle.js; parcel build public/index.html",
-    "bundle-watch": "spago bundle-app --watch --main Main --to public/bundle.js",
-    "postinstall": "spago install",
-    "start": "parcel serve public/index.html",
-    "test": "spago test"
+    "build": "rm -rf ./dist; npx spago bundle-app --main Main --to public/bundle.js; npx parcel build public/index.html",
+    "postinstall": "npx spago install",
+    "serve": "npm run build; npx http-server dist",
+    "test": "npx spago test"
   },
   "dependencies": {
     "strings": "^0.4.2",
@@ -20,6 +19,7 @@
   },
   "devDependencies": {
     "browserify": "^16.5.0",
+    "http-server": "^0.11.1",
     "parcel-bundler": "^1.12.3",
     "purescript": "^0.13.3",
     "purty": "^4.5.1",
