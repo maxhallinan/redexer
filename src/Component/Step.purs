@@ -11,6 +11,7 @@ module Component.Step
   ) where
 
 import Prelude
+import Debug.Trace (spy)
 import Component.Util as Util
 import Data.Array as Array
 import Data.Either (Either(..))
@@ -274,7 +275,7 @@ renderReadTerm ctx state =
 
     cn =
       if Term.isRedex state.term && isNothing state.focus then
-        termClassNames state <> [ "reduceable" ]
+        termClassNames state <> [ "redex" ]
       else
         termClassNames state
   in

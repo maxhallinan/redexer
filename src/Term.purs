@@ -227,7 +227,7 @@ isDescendantOf uuid term = case term of
 nearestRedexAncestor :: String -> Term -> Maybe Term
 nearestRedexAncestor uuid term =
   if isRedex term then
-    Just term
+    go (Just term) term
   else
     go Nothing term
   where

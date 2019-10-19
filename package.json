@@ -8,8 +8,9 @@
   },
   "scripts": {
     "build": "rm -rf ./dist; npx spago bundle-app --main Main --to public/bundle.js; npx parcel build public/index.html",
+    "deploy": "_scripts/deploy.sh",
     "postinstall": "npx spago install",
-    "serve": "npm run build; npx http-server dist",
+    "serve": "npx http-server dist",
     "test": "npx spago test"
   },
   "dependencies": {

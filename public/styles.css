@@ -233,16 +233,15 @@ h6 {
   text-decoration: none;
 }
 
-.prose .reduceable,
-.step.last .reduceable {
-  text-decoration: underline;
+.prose .redex,
+.step.last .redex {
+  background: rgba(242,214,0,0.5);
 }
 
 .prose .todo,
 .step.last .todo {
-  background: rgba(242,214,0,0.5);
+  background: rgba(242,214,0,0.75);
   cursor: pointer;
-  text-decoration: none;
 }
 
 .step .error {
