@@ -154,4 +154,4 @@ genWhiteSpace :: Gen String
 genWhiteSpace = fromCharArray <$> resize 3 (arrayOf genWhitespaceChar)
 
 genWhitespaceChar :: Gen Char
-genWhitespaceChar = elements $ ' ' :| toCharArray "\	\\n\\r"
+genWhitespaceChar = elements $ ' ' :| toCharArray "\t\n\r"
