@@ -201,6 +201,7 @@ h6 {
 }
 
 .editor,
+.redexer code,
 .step {
   font-family: "TriplicateT3Code";
   font-size: 1.125rem;
